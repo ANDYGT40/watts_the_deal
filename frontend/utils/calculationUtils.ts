@@ -11,10 +11,13 @@ export interface PlanCostBreakdown {
   evChargingAnnual: number;
   batteryPeakSavingsAnnual: number;
   freePowerBatterySavingsAnnual: number;
+  zeroHeroRewardAnnual: number;
   vppCreditAnnual: number;
   annualSavingsVsDMO: number;
   annualSavingsVsCurrent?: number;
   percentCheaperThanDMO: number;
+  isCredit: boolean; // Indicates household earns money / bill in net credit
+  dailyFreeSoakKWhCapped: number; // Actual kWh soaked during 3h window after inverter kW bottleneck
 }
 
 export function calculatePlanCost(
@@ -28,26 +31,37 @@ export function calculatePlanCost(
   // 1. Supply Charge: c/day * 365 / 100 => $
   const supplyCostAnnual = (plan.rates.dailySupplyChargeCents * daysInYear) / 100;
 
-  // 2. Battery Capacity & Discharge Modeling
-  // For standard batteries (10-13.5 kWh) it covers peak (40% of use).
-  // For massive battery banks (40kWh - 50kWh), it can displace 100% of peak AND shoulder hours!
+  // 2. Battery Capacity & Inverter Speed Constraints
   let usableDailyBatteryKWh = 0;
+  // Default inverter kW to 10kW for large 30-50kWh batteries, 5kW for smaller systems if not specified
+  const inverterKw = profile.batteryInverterKw || (profile.batteryCapacityKWh >= 30 ? 10 : 5);
+
   if (profile.hasBattery && profile.batteryCapacityKWh > 0) {
-    // 90% depth of discharge
-    usableDailyBatteryKWh = profile.batteryCapacityKWh * 0.90;
+    usableDailyBatteryKWh = profile.batteryCapacityKWh * 0.90; // 90% DoD
   }
 
-  // 3. Free Power Hours Battery Soaking
+  // 3. Free Power Hours Battery Soaking (11am-2pm = 3-hour window)
+  // Bottleneck: A 40kWh or 50kWh battery CANNOT charge more than (inverterKw * hours) in that window!
+  // e.g. 5kW inverter in 3 hours can only soak 15kWh max! A 10kW inverter can soak 30kWh.
+  let dailyFreeSoakKWhCapped = 0;
   const isFreePowerBatteryCharge = Boolean(
     profile.hasBattery && 
     plan.hasFreePowerHours && 
     (profile.batteryChargingSource === 'FREE_POWER_HOURS_SOAK' || profile.batteryChargingSource === 'SOLAR_AND_GRID')
   );
 
-  // 4. Usage Charge
+  if (isFreePowerBatteryCharge) {
+    const windowHours = plan.freePowerHoursDaily || 3;
+    const maxInverterIntakeKWh = inverterKw * windowHours;
+    // Capped by whichever is smaller: battery capacity or inverter intake limit
+    dailyFreeSoakKWhCapped = Math.min(usableDailyBatteryKWh, maxInverterIntakeKWh);
+  }
+
+  // 4. Usage Charge & Peak Offset
   let usageCostAnnual = 0;
   let batteryPeakSavingsAnnual = 0;
   let freePowerBatterySavingsAnnual = 0;
+  let zeroHeroRewardAnnual = 0;
 
   if (plan.tariffType === 'TOU' && plan.rates.peakRateCentsPerKWh) {
     let peakKWh = baseAnnualUsageKWh * 0.40;
@@ -59,28 +73,49 @@ export function calculatePlanCost(
     const offPeakRate = (plan.rates.offPeakRateCentsPerKWh || plan.rates.peakRateCentsPerKWh * 0.55) / 100;
 
     if (usableDailyBatteryKWh > 0) {
-      const annualBatteryStorage = usableDailyBatteryKWh * daysInYear;
+      // If charging from Free Power Hours, the battery only has the inverter-capped intake from that window
+      // plus any surplus rooftop solar
+      let effectiveDailyDischarge = usableDailyBatteryKWh;
+      if (isFreePowerBatteryCharge) {
+        effectiveDailyDischarge = Math.min(usableDailyBatteryKWh, dailyFreeSoakKWhCapped + (profile.hasSolar ? profile.solarDailyExportKWh * 0.5 : 0));
+      }
 
-      // First displace peak
+      const annualBatteryStorage = effectiveDailyDischarge * daysInYear;
+
+      // Displace peak consumption first
       const shavedPeak = Math.min(peakKWh, annualBatteryStorage);
       peakKWh -= shavedPeak;
       const remainingBatteryStorage = Math.max(0, annualBatteryStorage - shavedPeak);
 
-      // With a large 40kWh - 50kWh battery, remaining capacity can also displace shoulder!
+      // Remaining battery storage displaces shoulder
       const shavedShoulder = Math.min(shoulderKWh, remainingBatteryStorage);
       shoulderKWh -= shavedShoulder;
 
       if (isFreePowerBatteryCharge) {
-        // Battery was charged at 0c/kWh from the grid during Free Power Hours!
-        // Full displaced power saves 100% of the peak & shoulder tariffs
+        // Power soaked at 0c/kWh from the grid during Free Power Hours saves the full displaced rates!
         freePowerBatterySavingsAnnual = (shavedPeak * peakRate) + (shavedShoulder * shoulderRate);
         batteryPeakSavingsAnnual = freePowerBatterySavingsAnnual;
       } else {
-        // Stored power came from rooftop solar or off-peak grid
         const replacementCostRate = profile.hasSolar ? (plan.rates.solarFeedInTariffCents || 6.0) / 100 : offPeakRate;
         const netPeakBenefit = shavedPeak * (peakRate - replacementCostRate);
         const netShoulderBenefit = shavedShoulder * Math.max(0, shoulderRate - replacementCostRate);
         batteryPeakSavingsAnnual = netPeakBenefit + netShoulderBenefit;
+      }
+
+      // 5. ZEROHERO Model: EXACTLY $1.00 PER DAY if grid draw during peak is zero!
+      // If battery capacity displaces 100% of the household's peak draw on that day, user earns $1.00 for the day.
+      if (plan.hasZeroHeroIncentive) {
+        const dailyPeakNeedKWh = profile.averageDailyUsageKWh * 0.40;
+        // User achieves 0 grid draw if battery storage >= household peak demand
+        if (effectiveDailyDischarge >= dailyPeakNeedKWh) {
+          // Earns $1.00 per day for all 365 days of zero peak grid draw
+          const rewardPerDay = plan.zeroHeroDailyRewardDollars || 1.00;
+          zeroHeroRewardAnnual = rewardPerDay * daysInYear; // e.g. $365/year
+        } else {
+          // If inverter or battery is too small to cover the entire peak, prorate by coverage percentage
+          const coverageRatio = Math.min(1.0, effectiveDailyDischarge / dailyPeakNeedKWh);
+          zeroHeroRewardAnnual = Math.round(coverageRatio * (plan.zeroHeroDailyRewardDollars || 1.00) * daysInYear);
+        }
       }
     }
 
@@ -91,7 +126,12 @@ export function calculatePlanCost(
     let netUsage = baseAnnualUsageKWh;
 
     if (usableDailyBatteryKWh > 0) {
-      const annualBatterySupply = usableDailyBatteryKWh * daysInYear;
+      let effectiveDailyDischarge = usableDailyBatteryKWh;
+      if (isFreePowerBatteryCharge) {
+        effectiveDailyDischarge = Math.min(usableDailyBatteryKWh, dailyFreeSoakKWhCapped + (profile.hasSolar ? profile.solarDailyExportKWh * 0.5 : 0));
+      }
+
+      const annualBatterySupply = effectiveDailyDischarge * daysInYear;
       const displacedUsage = Math.min(baseAnnualUsageKWh * 0.85, annualBatterySupply);
       netUsage = Math.max(0, baseAnnualUsageKWh - displacedUsage);
 
@@ -106,7 +146,7 @@ export function calculatePlanCost(
     usageCostAnnual = netUsage * flatRate;
   }
 
-  // 5. EV Charging Annual Cost
+  // 6. EV Charging Annual Cost
   let evChargingAnnual = 0;
   if (profile.hasEV && profile.evDailyKWh > 0) {
     const annualEvKWh = profile.evDailyKWh * daysInYear;
@@ -127,36 +167,49 @@ export function calculatePlanCost(
     }
   }
 
-  // 6. Controlled Load
+  // 7. Controlled Load
   let controlledLoadAnnual = 0;
   if (profile.hasControlledLoad && profile.controlledLoadDailyKWh > 0) {
     const controlledRate = (plan.rates.controlledLoadCentsPerKWh || plan.rates.flatRateCentsPerKWh || 20.0) / 100;
     controlledLoadAnnual = profile.controlledLoadDailyKWh * daysInYear * controlledRate;
   }
 
-  // 7. Solar Feed-in Credit
+  // 8. Solar Feed-in Credit WITH CAPPED DAILY TIER LOGIC
   let solarCreditAnnual = 0;
   if (profile.hasSolar && profile.solarDailyExportKWh > 0 && plan.rates.solarFeedInTariffCents) {
-    let netExportKWh = profile.solarDailyExportKWh;
+    let netDailyExportKWh = profile.solarDailyExportKWh;
+
+    // If battery is present and not soaking from grid, store solar first up to inverter limit
     if (profile.hasBattery && profile.batteryCapacityKWh > 0 && !isFreePowerBatteryCharge) {
-      const storedForBattery = Math.min(profile.batteryCapacityKWh * 0.8, netExportKWh * 0.7);
-      netExportKWh = Math.max(0, netExportKWh - storedForBattery);
+      const maxDailySolarStorage = Math.min(usableDailyBatteryKWh * 0.8, inverterKw * 4);
+      const storedForBattery = Math.min(maxDailySolarStorage, netDailyExportKWh * 0.7);
+      netDailyExportKWh = Math.max(0, netDailyExportKWh - storedForBattery);
     }
-    const fitRate = plan.rates.solarFeedInTariffCents / 100;
-    solarCreditAnnual = netExportKWh * daysInYear * fitRate;
+
+    // Apply Tier 1 and Tier 2 Feed-in Tariff (FiT Cap)
+    const fitCapKWh = plan.rates.solarFeedInCapKWhPerDay || 14.0;
+    const primaryFitRate = plan.rates.solarFeedInTariffCents / 100;
+    const secondaryFitRate = (plan.rates.solarFeedInTariffCents * 0.55) / 100; // Base export rate above cap (~4.9c)
+
+    const tier1ExportKWh = Math.min(netDailyExportKWh, fitCapKWh);
+    const tier2ExportKWh = Math.max(0, netDailyExportKWh - fitCapKWh);
+
+    const dailySolarCredit = (tier1ExportKWh * primaryFitRate) + (tier2ExportKWh * secondaryFitRate);
+    solarCreditAnnual = dailySolarCredit * daysInYear;
   }
 
-  // 8. Virtual Power Plant (VPP) Credit
+  // 9. Virtual Power Plant (VPP) Credit
   let vppCreditAnnual = 0;
   if (profile.hasBattery && profile.joinVpp && plan.isBatteryVppEligible && plan.vppAnnualCredit) {
     const scaleFactor = profile.batteryCapacityKWh >= 30 ? 1.3 : 1.0;
     vppCreditAnnual = plan.vppAnnualCredit * scaleFactor;
   }
 
-  // Combined Annual Total
-  const totalRaw = supplyCostAnnual + usageCostAnnual + evChargingAnnual + controlledLoadAnnual - solarCreditAnnual - vppCreditAnnual;
-  const annualTotal = Math.max(0, totalRaw);
-  const quarterlyTotal = annualTotal / 4;
+  // Combined Annual Total (Net cost after credits and ZEROHERO rewards)
+  const totalRaw = supplyCostAnnual + usageCostAnnual + evChargingAnnual + controlledLoadAnnual - solarCreditAnnual - vppCreditAnnual - zeroHeroRewardAnnual;
+  const annualTotal = Math.round(totalRaw);
+  const quarterlyTotal = Math.round(totalRaw / 4);
+  const isCredit = annualTotal < 0;
 
   // DMO Reference benchmark
   const totalHouseholdKWh = baseAnnualUsageKWh + (profile.hasEV ? profile.evDailyKWh * daysInYear : 0);
@@ -174,8 +227,8 @@ export function calculatePlanCost(
   }
 
   return {
-    annualTotal: Math.round(annualTotal),
-    quarterlyTotal: Math.round(quarterlyTotal),
+    annualTotal,
+    quarterlyTotal,
     supplyCostAnnual: Math.round(supplyCostAnnual),
     usageCostAnnual: Math.round(usageCostAnnual),
     solarCreditAnnual: Math.round(solarCreditAnnual),
@@ -183,10 +236,13 @@ export function calculatePlanCost(
     evChargingAnnual: Math.round(evChargingAnnual),
     batteryPeakSavingsAnnual: Math.round(batteryPeakSavingsAnnual),
     freePowerBatterySavingsAnnual: Math.round(freePowerBatterySavingsAnnual),
+    zeroHeroRewardAnnual: Math.round(zeroHeroRewardAnnual),
     vppCreditAnnual: Math.round(vppCreditAnnual),
     annualSavingsVsDMO: Math.round(annualSavingsVsDMO),
     annualSavingsVsCurrent: annualSavingsVsCurrent !== undefined ? Math.round(annualSavingsVsCurrent) : undefined,
-    percentCheaperThanDMO: percentCheaperThanDMO,
+    percentCheaperThanDMO,
+    isCredit,
+    dailyFreeSoakKWhCapped: Math.round(dailyFreeSoakKWhCapped),
   };
 }
 
@@ -204,7 +260,6 @@ export function detectDistributorFromPostcode(postcodeStr: string): DistributorI
   const p = parseInt(postcodeStr, 10);
   if (isNaN(p)) return DISTRIBUTORS[0];
 
-  // Specific check for 3756 (Wallan, Mitchell Shire, AusNet boundary)
   if (p === 3756) {
     const ausnet = DISTRIBUTORS.find(d => d.code === 'AUSNET');
     if (ausnet) return ausnet;
