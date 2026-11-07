@@ -109,7 +109,98 @@ function createNetworkPlans(dist: DistributorInfo): EnergyPlan[] {
   const baseFlat = Number((26.5 * vdoMultiplier).toFixed(1));
 
   return [
-    // 1. GloBird Energy - FreeLunch (0c 11am-2pm)
+    // 1. GloBird Energy - ZEROHERO (Dual: 11am-2pm FREE power + $1.00/DAY Peak Incentive)
+    {
+      id: `${dist.code.toLowerCase()}-globird-zerohero`,
+      retailerName: 'GloBird Energy',
+      retailerCode: 'GLOBIRD',
+      planName: `ZEROHERO (Free 11am-2pm + $1/Day Peak Zero Draw) (${dist.code})`,
+      state: dist.state,
+      distributorCode: dist.code,
+      tariffType: 'TOU',
+      rates: {
+        dailySupplyChargeCents: Math.round(baseSupply * 0.95 * 10) / 10,
+        peakRateCentsPerKWh: Math.round(basePeak * 0.98 * 10) / 10,
+        shoulderRateCentsPerKWh: Math.round(baseShoulder * 0.94 * 10) / 10,
+        offPeakRateCentsPerKWh: Math.round(baseOffPeak * 0.92 * 10) / 10,
+        evNightRateCentsPerKWh: 7.2,
+        solarFeedInTariffCents: 9.0,
+        solarFeedInCapKWhPerDay: 14.0, // Top FiT applies up to cap, then drops to 4.9c
+      },
+      contractType: 'NO_LOCK_IN',
+      pricingType: 'VARIABLE',
+      isStandingOffer: false,
+      greenPowerAvailable: true,
+      greenPowerPercent: 20,
+      dmoComparisonPercent: -28,
+      features: [
+        'FREE 11:00am - 2:00pm power window daily (0c/kWh FreeLunch soak)',
+        '$1.00 / DAY reward for zero net grid use during peak period (4pm-9pm)',
+        'Soak into battery for $0 at midday up to your inverter kW speed limit',
+        'Capped retail rate protection with zero wholesale spot risk'
+      ],
+      billFrequency: 'MONTHLY',
+      coolingOffDays: 10,
+      websiteUrl: 'https://www.globirdenergy.com.au',
+      phone: '13 34 56',
+      customerRating: 4.8,
+      hasFreePowerHours: true,
+      freePowerWindowDescription: 'Free 3 hours daily (11:00am - 2:00pm) + $1.00/day ZEROHERO peak reward',
+      freePowerHoursDaily: 3,
+      hasZeroHeroIncentive: true,
+      zeroHeroDailyRewardDollars: 1.00,
+      zeroHeroDescription: '$1.00 per day credited when you draw zero electricity from the grid during peak hours (4pm - 9pm)',
+      isBatteryVppEligible: true,
+      vppAnnualCredit: 250,
+      vppProviderName: 'GloBird ZeroHero Grid Resilience',
+    },
+
+    // 2. GloBird Energy - WholeSave (Wholesale pass-through & low daily supply)
+    {
+      id: `${dist.code.toLowerCase()}-globird-wholesave`,
+      retailerName: 'GloBird Energy',
+      retailerCode: 'GLOBIRD',
+      planName: `WholeSave Wholesale Pass-Through (${dist.code})`,
+      state: dist.state,
+      distributorCode: dist.code,
+      tariffType: 'TOU',
+      rates: {
+        dailySupplyChargeCents: Math.round(baseSupply * 0.92 * 10) / 10,
+        peakRateCentsPerKWh: Math.round(basePeak * 1.05 * 10) / 10,
+        shoulderRateCentsPerKWh: Math.round(baseShoulder * 0.90 * 10) / 10,
+        offPeakRateCentsPerKWh: Math.round(baseOffPeak * 0.88 * 10) / 10,
+        evNightRateCentsPerKWh: 6.0,
+        solarFeedInTariffCents: 10.0,
+        solarFeedInCapKWhPerDay: 20.0,
+      },
+      contractType: 'NO_LOCK_IN',
+      pricingType: 'VARIABLE',
+      isStandingOffer: false,
+      greenPowerAvailable: true,
+      greenPowerPercent: 20,
+      dmoComparisonPercent: -27,
+      features: [
+        'Direct NEM wholesale spot pricing pass-through with no monthly markup',
+        '0c/kWh & negative price access during midday solar floods',
+        'Discharge 40kWh-50kWh battery into wholesale evening surges (subject to inverter kW)',
+        'Ultra-low sub-92c/day daily supply charge'
+      ],
+      billFrequency: 'MONTHLY',
+      coolingOffDays: 10,
+      websiteUrl: 'https://www.globirdenergy.com.au',
+      phone: '13 34 56',
+      customerRating: 4.7,
+      isEvPlan: true,
+      evRateDescription: 'Direct pass-through of overnight and midday wholesale dips',
+      isBatteryVppEligible: true,
+      vppAnnualCredit: 410,
+      vppProviderName: 'GloBird WholeSave Battery Optimisation',
+      hasFreePowerHours: true,
+      freePowerWindowDescription: '0c/kWh Solar Sponge & Negative Wholesale Hours',
+      freePowerHoursDaily: 3,
+    },
+
+    // 3. GloBird Energy - FreeLunch (0c 11am-2pm Standard)
     {
       id: `${dist.code.toLowerCase()}-globird-freelunch`,
       retailerName: 'GloBird Energy',
@@ -135,7 +226,7 @@ function createNetworkPlans(dist: DistributorInfo): EnergyPlan[] {
       dmoComparisonPercent: -26,
       features: [
         'FREE power 11:00am - 2:00pm daily ("FreeLunch" 0c/kWh)',
-        'Fill your 40kWh - 50kWh battery for $0 from the grid during FreeLunch',
+        'Fill your battery for $0 at up to your inverter speed (e.g. 5kW = 15kWh in 3hrs)',
         `Ultra-competitive supply charge in ${dist.code} network`,
         '100% Australian customer service'
       ],
@@ -154,50 +245,7 @@ function createNetworkPlans(dist: DistributorInfo): EnergyPlan[] {
       freePowerHoursDaily: 3,
     },
 
-    // 2. GloBird Energy - ZEROHERO ($1/kWh peak reward for zero grid draw or battery export)
-    {
-      id: `${dist.code.toLowerCase()}-globird-zerohero`,
-      retailerName: 'GloBird Energy',
-      retailerCode: 'GLOBIRD',
-      planName: `ZEROHERO Peak Reward Tariff (${dist.code})`,
-      state: dist.state,
-      distributorCode: dist.code,
-      tariffType: 'TOU',
-      rates: {
-        dailySupplyChargeCents: Math.round(baseSupply * 0.95 * 10) / 10,
-        peakRateCentsPerKWh: Math.round(basePeak * 0.98 * 10) / 10,
-        shoulderRateCentsPerKWh: Math.round(baseShoulder * 0.94 * 10) / 10,
-        offPeakRateCentsPerKWh: Math.round(baseOffPeak * 0.92 * 10) / 10,
-        evNightRateCentsPerKWh: 7.2,
-        solarFeedInTariffCents: 9.0,
-      },
-      contractType: 'NO_LOCK_IN',
-      pricingType: 'VARIABLE',
-      isStandingOffer: false,
-      greenPowerAvailable: true,
-      greenPowerPercent: 20,
-      dmoComparisonPercent: -27,
-      features: [
-        '$1.00 / kWh cash reward for zero net grid use during peak periods',
-        'Discharge your 40-50kWh battery to earn guaranteed $1/kWh demand credits',
-        'No wholesale spot price risk — 100% predictable rate cap',
-        'Sub-95c/day daily supply charge'
-      ],
-      billFrequency: 'MONTHLY',
-      coolingOffDays: 10,
-      websiteUrl: 'https://www.globirdenergy.com.au',
-      phone: '13 34 56',
-      customerRating: 4.8,
-      hasZeroHeroIncentive: true,
-      zeroHeroPeakRewardPerKWhSaved: 1.00,
-      zeroHeroDescription: '$1.00/kWh incentive paid for zero peak power consumption or battery export (4:00pm - 9:00pm)',
-      isBatteryVppEligible: true,
-      vppAnnualCredit: 380,
-      vppProviderName: 'GloBird ZeroHero Grid Resilience',
-      hasFreePowerHours: false,
-    },
-
-    // 3. GloBird Energy - GloSave Flat Rate
+    // 4. GloBird Energy - GloSave Flat Rate
     {
       id: `${dist.code.toLowerCase()}-globird-glosave`,
       retailerName: 'GloBird Energy',
@@ -231,7 +279,7 @@ function createNetworkPlans(dist: DistributorInfo): EnergyPlan[] {
       hasFreePowerHours: false,
     },
 
-    // 4. Amber Electric - Smartshift Wholesale Pass-Through
+    // 5. Amber Electric - Smartshift Wholesale Pass-Through
     {
       id: `${dist.code.toLowerCase()}-amber-smart`,
       retailerName: 'Amber Electric',
@@ -255,8 +303,8 @@ function createNetworkPlans(dist: DistributorInfo): EnergyPlan[] {
       greenPowerPercent: 100,
       dmoComparisonPercent: -25,
       features: [
-        'Automated 40kWh - 50kWh battery soaking when wholesale rates hit 0c or negative',
-        'Export battery to grid at up to $15/kWh (1500c/kWh) during evening price spikes',
+        'Automated battery soaking when wholesale rates hit 0c or negative',
+        'Export battery into evening spikes (discharge rate limited by inverter kW)',
         'Direct pass-through of NEM wholesale electricity spot prices'
       ],
       billFrequency: 'MONTHLY',
@@ -268,13 +316,13 @@ function createNetworkPlans(dist: DistributorInfo): EnergyPlan[] {
       evRateDescription: 'Wholesale dips (often 0c to 5c/kWh overnight & midday)',
       isBatteryVppEligible: true,
       vppAnnualCredit: 440,
-      vppProviderName: 'Amber Smartshift Automated 50kWh Dispatch',
+      vppProviderName: 'Amber Smartshift Automated Dispatch',
       hasFreePowerHours: true,
       freePowerWindowDescription: 'Automated 0c/kWh Solar Sponge & Negative Price Intervals',
       freePowerHoursDaily: 3,
     },
 
-    // 5. OVO Energy - The One Plan (Free 3-Hour Power 11am-2pm)
+    // 6. OVO Energy - The One Plan (Free 3-Hour Power 11am-2pm)
     {
       id: `${dist.code.toLowerCase()}-ovo-theone`,
       retailerName: 'OVO Energy',
@@ -299,7 +347,7 @@ function createNetworkPlans(dist: DistributorInfo): EnergyPlan[] {
       dmoComparisonPercent: -23,
       features: [
         'FREE 3 hours of electricity daily (11:00am - 2:00pm)',
-        'Soak grid power into 40kWh - 50kWh battery banks for $0',
+        'Soak grid power into battery for $0 during window (limited by inverter kW)',
         'EV Add-on: 8.0c/kWh overnight charging'
       ],
       billFrequency: 'MONTHLY',
@@ -317,7 +365,7 @@ function createNetworkPlans(dist: DistributorInfo): EnergyPlan[] {
       freePowerHoursDaily: 3,
     },
 
-    // 6. AGL Energy - EV Night Saver
+    // 7. AGL Energy - EV Night Saver
     {
       id: `${dist.code.toLowerCase()}-agl-ev-night`,
       retailerName: 'AGL Energy',
@@ -351,12 +399,14 @@ function createNetworkPlans(dist: DistributorInfo): EnergyPlan[] {
       phone: '131 245',
       customerRating: 4.5,
       isEvPlan: true,
+      evRateDescription: '8.0c/kWh between 12:00am and 6:00am',
       isBatteryVppEligible: true,
       vppAnnualCredit: 280,
+      vppProviderName: 'AGL Virtual Power Plant',
       hasFreePowerHours: false,
     },
 
-    // 7. Origin Energy - EV Power Up
+    // 8. Origin Energy - EV Power Up
     {
       id: `${dist.code.toLowerCase()}-origin-ev`,
       retailerName: 'Origin Energy',
@@ -390,12 +440,14 @@ function createNetworkPlans(dist: DistributorInfo): EnergyPlan[] {
       phone: '13 24 61',
       customerRating: 4.4,
       isEvPlan: true,
+      evRateDescription: '7.8c/kWh overnight EV charging',
       isBatteryVppEligible: true,
       vppAnnualCredit: 250,
+      vppProviderName: 'Origin Loop VPP',
       hasFreePowerHours: false,
     },
 
-    // 8. EnergyAustralia - Total Plan Home
+    // 9. EnergyAustralia - Total Plan Home
     {
       id: `${dist.code.toLowerCase()}-ea-total`,
       retailerName: 'EnergyAustralia',
@@ -430,7 +482,7 @@ function createNetworkPlans(dist: DistributorInfo): EnergyPlan[] {
       hasFreePowerHours: false,
     },
 
-    // 9. Powershop - Free Power Sponge
+    // 10. Powershop - Free Power Sponge
     {
       id: `${dist.code.toLowerCase()}-powershop-sponge`,
       retailerName: 'Powershop',
@@ -470,7 +522,7 @@ function createNetworkPlans(dist: DistributorInfo): EnergyPlan[] {
       freePowerHoursDaily: 3,
     },
 
-    // 10. Regulated Standing Offer (DMO or VDO Reference Price)
+    // 11. Regulated Standing Offer (DMO or VDO Reference Price)
     {
       id: `${dist.code.toLowerCase()}-standing-dmo`,
       retailerName: 'Standard Retailer Standing Offer',
@@ -508,7 +560,6 @@ function createNetworkPlans(dist: DistributorInfo): EnergyPlan[] {
 
 export const SAMPLE_AER_PLANS: EnergyPlan[] = DISTRIBUTORS.flatMap(createNetworkPlans);
 
-// Realistic 24-Hour National Electricity Market (NEM) wholesale price curve
 export const SAMPLE_WHOLESALE_INTERVALS: WholesaleHalfHourInterval[] = [
   { time: '00:00', wholesalePriceCentsPerKWh: 8.2, isPeakPeriod: false, isSolarSpongePeriod: false, isSpike: false, gridStatus: 'NORMAL' },
   { time: '02:00', wholesalePriceCentsPerKWh: 5.4, isPeakPeriod: false, isSolarSpongePeriod: false, isSpike: false, gridStatus: 'NORMAL' },
@@ -531,23 +582,28 @@ export const SAMPLE_WHOLESALE_INTERVALS: WholesaleHalfHourInterval[] = [
 
 export const JARGON_GLOSSARY = [
   {
-    term: 'GloBird ZEROHERO ($1/kWh Incentive)',
-    meaning: 'GloBird Energy\'s demand-response incentive program paying you $1.00 for every kilowatt-hour avoided or discharged from a home battery during high-stress peak periods (typically 4:00pm - 9:00pm weekdays). Unlike wholesale plans, your retail electricity rate remains strictly capped so you face zero risk of runaway bills.',
-    tip: 'With a 40kWh or 50kWh battery, discharging 20-30kWh across the peak window earns you $20 - $30 in direct bill credits per event (over $800 - $1,400/year) without exposing your home to volatile wholesale price spikes.'
+    term: 'Battery Inverter Speed vs Battery Capacity',
+    meaning: 'While a battery can have a large energy capacity (e.g. 40kWh or 50kWh), the charging and discharging rate is strictly limited by the battery inverter kW rating (usually 5kW, 7kW, or 10kW for residential connections). During a 3-hour free power window (11am-2pm), a 5kW inverter can only draw at most 15kWh (5kW x 3h = 15kWh), whereas a 10kW inverter can draw 30kWh.',
+    tip: 'Make sure to configure your exact inverter kW size in our profile builder so your estimated free battery soak reflects your real physical hardware.'
   },
   {
-    term: 'Amber Smartshift Wholesale Discharging',
-    meaning: 'Amber passes through the real-time National Electricity Market (NEM) wholesale spot price, which normally fluctuates between -5c/kWh (curtailed solar flood) and $15.00/kWh (extreme price cap). When the grid spikes, your battery automatically sells stored energy back into the grid at wholesale spot rates.',
-    tip: 'Wholesale plans offer immense reward during extreme summer/winter grid events, but also require careful inverter control to avoid accidentally importing power at $15/kWh if your battery runs dry.'
+    term: 'Solar Feed-in Tariff (FiT) Daily Caps',
+    meaning: 'Many competitive Australian retail plans pay a premium solar feed-in tariff (e.g. 8c to 12c/kWh) only up to a daily export cap (typically 10kWh to 14kWh per day). Any excess solar exported beyond this cap drops down to a lower base rate (typically 4.5c to 5c/kWh).',
+    tip: 'Storing surplus rooftop solar inside your home battery rather than exporting past the daily cap avoids getting paid the low second-tier rate.'
   },
   {
-    term: 'GloBird FreeLunch (11:00am - 2:00pm)',
-    meaning: 'GloBird Energy provides 100% free grid power (0c/kWh) between 11:00am and 2:00pm every day of the year. This allows households with large 40kWh or 50kWh batteries to suck power from the grid at $0.00/kWh, regardless of cloud cover, and power the home for free through the night.',
-    tip: 'Pairing FreeLunch with a 40kWh-50kWh battery guarantees free electricity with zero market volatility.'
+    term: 'GloBird ZEROHERO ($1/Day Peak Zero Usage Reward)',
+    meaning: 'GloBird Energy\'s ZEROHERO tariff rewards you with a flat $1.00 credit for every day you draw ZERO electricity from the grid during the peak period (4:00pm to 9:00pm). By using your home battery to power your household during these hours, you pocket up to $365/year in guaranteed rewards without taking on wholesale spot price volatility.',
+    tip: 'Because ZEROHERO also includes the 11am-2pm FreeLunch window, you can charge your battery for $0 at midday, power your home in the evening, and claim your $1/day reward!'
   },
   {
-    term: 'Wholesale Price Spikes vs Capped Retail',
-    meaning: 'Wholesale prices are set every 5 minutes on the NEM by AEMO. Capped retail plans (like GloBird FreeLunch or OVO) absorb all wholesale volatility for you, whereas pass-through providers (like Amber) pass both the negative price benefits and the risk of price surges directly to you.',
-    tip: 'If you want 100% peace of mind, choose GloBird FreeLunch or ZEROHERO. If you love automated energy trading and active grid participation, Amber Smartshift is unmatched.'
+    term: 'GloBird WholeSave (Wholesale Pass-Through)',
+    meaning: 'GloBird Energy\'s wholesale electricity tariff that passes through raw National Electricity Market (NEM) spot prices with an ultra-low daily supply charge and no monthly account fees. Ideal for pairing with home batteries to soak negative midday prices and discharge during evening price events.',
+    tip: 'Compare GloBird WholeSave with Amber Smartshift in our Wholesale Simulator to evaluate wholesale vs capped rates.'
+  },
+  {
+    term: 'Large Residential Battery Storage (40kWh - 50kWh)',
+    meaning: 'High-capacity residential battery banks (such as multiple Tesla Powerwalls, BYD Battery-Box Commercial/Residential, or Sungrow stackable systems totaling 40kWh to 50kWh) provide massive energy independence. They can store days of solar or soak entire free-power windows up to your inverter speed.',
+    tip: 'A 40kWh-50kWh battery can eliminate up to 95% of grid power purchases, effectively turning your grid connection into an optional backup.'
   }
 ];
