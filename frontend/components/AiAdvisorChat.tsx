@@ -13,7 +13,7 @@ export const AiAdvisorChat: React.FC<AiAdvisorChatProps> = ({ profile, distribut
   const [messages, setMessages] = useState<Array<{ sender: 'ai' | 'user'; text: string }>>([
     {
       sender: 'ai',
-      text: `G'day! I'm WattWise, your independent energy guide. You're currently exploring ${planCount} plans in the ${distributor.name} network with ${profile.averageDailyUsageKWh} kWh/day usage. Ask me anything about DMO rates, solar FiT, or how to switch!`
+      text: `G'day! I'm your "Watt's the Deal" independent energy advisor. You're currently exploring ${planCount} plans in the ${distributor.name} network with ${profile.averageDailyUsageKWh} kWh/day usage. Ask me anything about DMO rates, solar FiT, free power hours, or how to switch!`
     }
   ]);
   const [input, setInput] = useState('');
@@ -41,6 +41,7 @@ export const AiAdvisorChat: React.FC<AiAdvisorChatProps> = ({ profile, distribut
 
   const sampleQuestions = [
     'Is Time-of-Use better than Flat Rate for me?',
+    'How do Free Power Hours work with my home battery?',
     'What happens to my power when I switch retailers?',
     'Why is the Reference Price important?',
   ];
@@ -53,7 +54,7 @@ export const AiAdvisorChat: React.FC<AiAdvisorChatProps> = ({ profile, distribut
             <Bot className="w-4 h-4" />
           </div>
           <div>
-            <h4 className="text-sm font-bold text-slate-900">WattWise Energy Assistant</h4>
+            <h4 className="text-sm font-bold text-slate-900">Watt's the Deal Energy Assistant</h4>
             <p className="text-[11px] text-slate-500">Instant answers powered by Gemini 2.5</p>
           </div>
         </div>
@@ -92,7 +93,7 @@ export const AiAdvisorChat: React.FC<AiAdvisorChatProps> = ({ profile, distribut
         {loading && (
           <div className="flex items-center gap-2 text-xs text-slate-500">
             <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-600" />
-            <span>WattWise is writing advice...</span>
+            <span>Watt's the Deal is writing advice...</span>
           </div>
         )}
       </div>
