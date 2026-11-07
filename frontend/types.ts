@@ -46,15 +46,20 @@ export interface EnergyPlan {
   
   // EV & Battery Provisions
   isEvPlan?: boolean;
-  evRateDescription?: string; // e.g. "8.0c/kWh between 12am - 6am every night"
+  evRateDescription?: string;
   isBatteryVppEligible?: boolean;
-  vppAnnualCredit?: number; // e.g. $240/yr VPP grid participation credit
-  vppProviderName?: string; // e.g. "Tesla Energy Plan / Amber SmartShift / AGL VPP"
+  vppAnnualCredit?: number;
+  vppProviderName?: string;
 
   // Free Power Hours Provision
   hasFreePowerHours?: boolean;
-  freePowerWindowDescription?: string; // e.g. "Free 3 hours daily (11:00am - 2:00pm)"
-  freePowerHoursDaily?: number; // Duration in hours per day (e.g. 3 hours)
+  freePowerWindowDescription?: string;
+  freePowerHoursDaily?: number;
+
+  // GloBird ZeroHero / Demand Response Peak Curtailment Incentive
+  hasZeroHeroIncentive?: boolean;
+  zeroHeroPeakRewardPerKWhSaved?: number; // e.g. $1.00 / kWh rewarded for zero net peak draw or battery export
+  zeroHeroDescription?: string;
 }
 
 export interface HouseholdProfile {
@@ -72,14 +77,38 @@ export interface HouseholdProfile {
 
   // EV Charging Provisions
   hasEV: boolean;
-  evDailyKWh: number; // Typical daily top-up: ~8 - 14 kWh/day (~40-70km)
+  evDailyKWh: number;
   evChargingTime: 'OVERNIGHT' | 'DAYTIME_SOLAR' | 'FREE_POWER_HOURS' | 'FLEXIBLE';
 
   // Home Battery Storage Provisions
   hasBattery: boolean;
-  batteryCapacityKWh: number; // e.g. 5, 10, 13.5 kWh
-  batteryChargingSource: 'SOLAR_AND_GRID' | 'FREE_POWER_HOURS_SOAK' | 'SOLAR_ONLY'; // Charge battery for $0 during free power hours
-  joinVpp: boolean; // Virtual Power Plant enrollment for grid discharge credits
+  batteryCapacityKWh: number; // e.g. 5, 10, 13.5, 40, 50 kWh
+  batteryMaxDischargeKw?: number; // e.g. 5kW, 10kW or 15kW inverter rating
+  batteryChargingSource: 'SOLAR_AND_GRID' | 'FREE_POWER_HOURS_SOAK' | 'SOLAR_ONLY';
+  joinVpp: boolean;
+
+  // ZeroHero / Peak Curtailment opt-in
+  participateInZeroHero?: boolean;
+}
+
+export interface WholesaleHalfHourInterval {
+  time: string; // e.g. "17:30"
+  wholesalePriceCentsPerKWh: number; // e.g. -5c/kWh up to $15.00/kWh (1500c/kWh)
+  isPeakPeriod: boolean;
+  isSolarSpongePeriod: boolean;
+  isSpike: boolean;
+  gridStatus: 'NORMAL' | 'SOLAR_FLOOD' | 'EVENING_PEAK' | 'EXTREME_PRICE_SPIKE';
+}
+
+export interface BatteryStrategyComparison {
+  scenarioName: string;
+  description: string;
+  amberWholesaleAnnualNetProfit: number;
+  gloBirdFreeLunchAnnualTotal: number;
+  zeroHeroEarningsAnnual: number;
+  recommendedWinner: 'AMBER_WHOLESALE' | 'GLOBIRD_FREELUNCH' | 'GLOBIRD_ZEROHERO';
+  pros: string[];
+  cons: string[];
 }
 
 export interface BillAnalysisResult {
