@@ -12,7 +12,8 @@ import {
   Car,
   BatteryCharging,
   Zap,
-  Clock
+  Clock,
+  DollarSign
 } from 'lucide-react';
 
 interface PlanCardProps {
@@ -43,24 +44,33 @@ export const PlanCard: React.FC<PlanCardProps> = ({
         ? 'border-emerald-500 ring-2 ring-emerald-500/20 shadow-lg' 
         : isDmoStanding
           ? 'border-slate-300/80 bg-slate-50/50'
-          : plan.hasFreePowerHours
-            ? 'border-amber-300/80 hover:border-amber-400 hover:shadow-md'
-            : 'border-slate-200 hover:border-slate-300 hover:shadow-md'
+          : plan.hasZeroHeroIncentive
+            ? 'border-emerald-500 hover:border-emerald-600 hover:shadow-lg'
+            : plan.hasFreePowerHours
+              ? 'border-amber-300/80 hover:border-amber-400 hover:shadow-md'
+              : 'border-slate-200 hover:border-slate-300 hover:shadow-md'
     }`}>
       {/* Top Banner */}
       <div className={`px-5 py-2.5 text-xs font-bold flex flex-wrap items-center justify-between gap-2 ${
         isDmoStanding 
           ? 'bg-slate-200 text-slate-700' 
-          : plan.hasFreePowerHours
-            ? 'bg-gradient-to-r from-amber-600 via-emerald-700 to-slate-900 text-white'
-            : plan.isEvPlan
-              ? 'bg-gradient-to-r from-sky-800 to-emerald-700 text-white'
-              : plan.dmoComparisonPercent <= -18
-                ? 'bg-emerald-600 text-white'
-                : 'bg-emerald-50 text-emerald-900 border-b border-emerald-100'
+          : plan.hasZeroHeroIncentive
+            ? 'bg-gradient-to-r from-emerald-800 via-emerald-700 to-slate-900 text-white'
+            : plan.hasFreePowerHours
+              ? 'bg-gradient-to-r from-amber-600 via-emerald-700 to-slate-900 text-white'
+              : plan.isEvPlan
+                ? 'bg-gradient-to-r from-sky-800 to-emerald-700 text-white'
+                : plan.dmoComparisonPercent <= -18
+                  ? 'bg-emerald-600 text-white'
+                  : 'bg-emerald-50 text-emerald-900 border-b border-emerald-100'
       }`}>
         <div className="flex items-center gap-2 flex-wrap">
-          {plan.hasFreePowerHours && (
+          {plan.hasZeroHeroIncentive && (
+            <span className="inline-flex items-center gap-1 bg-emerald-400 text-slate-950 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+              <DollarSign className="w-3 h-3" /> $1.00/kWh PEAK REWARD (ZEROHERO)
+            </span>
+          )}
+          {plan.hasFreePowerHours && !plan.hasZeroHeroIncentive && (
             <span className="inline-flex items-center gap-1 bg-amber-400 text-slate-950 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full uppercase tracking-wider">
               <Zap className="w-3 h-3" /> FREE POWER HOURS (0c)
             </span>
@@ -144,8 +154,28 @@ export const PlanCard: React.FC<PlanCardProps> = ({
           </div>
         </div>
 
-        {/* Free Power Hours Alert & Battery Soak Benefit */}
-        {plan.hasFreePowerHours && (
+        {/* GloBird ZEROHERO Banner */}
+        {plan.hasZeroHeroIncentive && (
+          <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-950 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center flex-shrink-0 font-bold">
+                <DollarSign className="w-4 h-4" />
+              </div>
+              <div>
+                <span className="font-extrabold block">ZEROHERO Incentive: {plan.zeroHeroDescription}</span>
+                <span className="text-[11px] text-emerald-800">
+                  Discharge from your {profile.batteryCapacityKWh}kWh battery during 4pm-9pm peak window to earn $1.00/kWh cash rewards with zero wholesale spot risk!
+                </span>
+              </div>
+            </div>
+            <span className="font-mono font-bold text-emerald-900 bg-emerald-200/80 px-2.5 py-1 rounded text-right whitespace-nowrap">
+              Earn ~$650-$1,200/yr
+            </span>
+          </div>
+        )}
+
+        {/* Free Power Hours Alert */}
+        {plan.hasFreePowerHours && !plan.hasZeroHeroIncentive && (
           <div className="p-3 rounded-xl bg-amber-50 border border-amber-300 text-amber-950 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <div className="w-7 h-7 rounded-lg bg-amber-200 text-amber-900 flex items-center justify-center flex-shrink-0 font-bold">
@@ -165,17 +195,6 @@ export const PlanCard: React.FC<PlanCardProps> = ({
                 +${cost.freePowerBatterySavingsAnnual}/yr Battery Soak Savings
               </span>
             )}
-          </div>
-        )}
-
-        {/* EV / Battery Highlight Notice */}
-        {plan.isEvPlan && plan.rates.evNightRateCentsPerKWh && !plan.hasFreePowerHours && (
-          <div className="px-3 py-2 rounded-xl bg-sky-50 border border-sky-200 text-sky-900 text-xs flex items-center justify-between">
-            <span className="flex items-center gap-1.5 font-bold">
-              <Car className="w-4 h-4 text-sky-600" />
-              EV Super Off-Peak: {plan.rates.evNightRateCentsPerKWh}c/kWh
-            </span>
-            <span className="text-[11px] text-sky-700 font-medium">{plan.evRateDescription || 'Overnight charging window'}</span>
           </div>
         )}
 
@@ -251,7 +270,7 @@ export const PlanCard: React.FC<PlanCardProps> = ({
         {expanded && (
           <div className="mt-4 pt-4 border-t border-slate-100 space-y-3 bg-slate-50/80 -mx-5 -mb-5 p-5">
             <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700">
-              Detailed Cost Composition (Annual Estimates with Battery & Free Power Window)
+              Detailed Cost Composition (Annual Estimates with Battery & Incentives)
             </h4>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-mono">
               <div className="p-2 bg-white rounded border border-slate-200">
@@ -265,7 +284,7 @@ export const PlanCard: React.FC<PlanCardProps> = ({
               {profile.hasBattery && cost.batteryPeakSavingsAnnual > 0 && (
                 <div className="p-2 bg-emerald-50 rounded border border-emerald-200">
                   <span className="text-[10px] text-emerald-800 font-sans block">
-                    {plan.hasFreePowerHours ? 'Battery Free Soak Offset' : 'Battery Peak Offset'}
+                    {plan.hasZeroHeroIncentive ? 'ZEROHERO Peak Offset' : plan.hasFreePowerHours ? 'Battery Free Soak Offset' : 'Battery Peak Offset'}
                   </span>
                   <span className="font-bold text-emerald-700">-${cost.batteryPeakSavingsAnnual} / yr</span>
                 </div>
@@ -303,7 +322,7 @@ export const PlanCard: React.FC<PlanCardProps> = ({
                 </a>
               </p>
               <p className="text-[11px] text-slate-500">
-                * Rates inclusive of GST. Plans with free power hours allow zero-cent charging of compatible home batteries.
+                * Rates inclusive of GST. Plans with free power hours or ZEROHERO incentives reward residential storage batteries.
               </p>
             </div>
           </div>
