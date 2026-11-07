@@ -6,7 +6,6 @@ import { BillAnalysisResult } from '../types';
  * Only returns values that actually match the user's provided text.
  */
 function parseTextWithoutMockData(text: string): BillAnalysisResult {
-  // Extract Retailer from the actual text provided (supports GloBird Energy)
   let retailer = 'Energy Retailer';
   if (/globird|glo bird/i.test(text)) retailer = 'GloBird Energy';
   else if (/origin/i.test(text)) retailer = 'Origin Energy';
@@ -18,7 +17,6 @@ function parseTextWithoutMockData(text: string): BillAnalysisResult {
   else if (/alinta/i.test(text)) retailer = 'Alinta Energy';
   else if (/amber/i.test(text)) retailer = 'Amber Electric';
 
-  // State detection
   let state = 'NSW';
   if (/vic|victoria/i.test(text)) state = 'VIC';
   else if (/qld|queensland/i.test(text)) state = 'QLD';
@@ -26,42 +24,33 @@ function parseTextWithoutMockData(text: string): BillAnalysisResult {
   else if (/act|canberra/i.test(text)) state = 'ACT';
   else if (/tas|tasmania/i.test(text)) state = 'TAS';
 
-  // NMI (10 or 11 digits)
   const nmiMatch = text.match(/nmi[:\s#]*([a-zA-Z0-9]{10,11})/i) || text.match(/\b(4\d{9,10}|2\d{9,10}|6\d{9,10}|7\d{9,10})\b/);
   const nmi = nmiMatch ? nmiMatch[1] : undefined;
 
-  // Period Days
   const daysMatch = text.match(/(\d{1,3})\s*(?:billing\s*)?days/i);
   const periodDays = daysMatch ? parseInt(daysMatch[1], 10) : undefined;
 
-  // Total kWh
   const totalKWhMatch = text.match(/([0-9,.]+)\s*kwh(?!\s*\/day)/i) || text.match(/total\s*(?:electricity|energy|usage)[:\s]*([0-9,.]+)/i);
   const totalKWh = totalKWhMatch ? parseFloat(totalKWhMatch[1].replace(/,/g, '')) : undefined;
 
-  // Daily Average kWh
   const dailyAvgMatch = text.match(/([0-9.]+)\s*kwh\s*\/\s*day/i) || text.match(/daily\s*(?:average|consumption)[:\s]*([0-9.]+)/i);
   let dailyAverageKWh = dailyAvgMatch ? parseFloat(dailyAvgMatch[1]) : undefined;
   if (!dailyAverageKWh && totalKWh && periodDays && periodDays > 0) {
     dailyAverageKWh = Number((totalKWh / periodDays).toFixed(1));
   }
 
-  // Total Cost ($)
   const costMatch = text.match(/(?:total\s*(?:amount|payable|balance|due)|new\s*charges)[:\s]*\$?\s*([0-9,.]+)/i) || text.match(/\$\s*([0-9,.]+)\s*(?:payable|due)/i);
   const totalCostIncGst = costMatch ? parseFloat(costMatch[1].replace(/,/g, '')) : undefined;
 
-  // Daily Supply Charge (c/day)
   const supplyMatch = text.match(/supply\s*charge[:\s]*.*?([0-9.]+)\s*c(?:\/day|\s*cents)/i) || text.match(/([0-9.]+)\s*c\/day/i);
   const currentSupplyChargeCents = supplyMatch ? parseFloat(supplyMatch[1]) : undefined;
 
-  // Usage Rate (c/kWh)
   const usageMatch = text.match(/(?:usage|peak|general)\s*rate[:\s]*.*?([0-9.]+)\s*c(?:\/kwh|\s*cents)/i) || text.match(/([0-9.]+)\s*c\/kwh/i);
   const currentUsageRateCents = usageMatch ? parseFloat(usageMatch[1]) : undefined;
 
-  // Solar FiT export
   const solarMatch = text.match(/solar(?:\s*feed-in|\s*export)?[:\s]*.*?([0-9.]+)\s*kwh/i);
   const solarExportKWh = solarMatch ? parseFloat(solarMatch[1]) : undefined;
 
-  // EV / Battery detection
   const evDetected = /electric vehicle|\bev\b|tesla|charger/i.test(text);
   const batteryDetected = /battery|powerwall|sungrow|byd|vpp/i.test(text);
 
@@ -74,16 +63,13 @@ function parseTextWithoutMockData(text: string): BillAnalysisResult {
     insights.push(`Your bill reflects an average consumption of ${dailyAverageKWh} kWh/day.`);
   }
   if (currentSupplyChargeCents) {
-    insights.push(`Current supply charge is ${currentSupplyChargeCents}c/day. Competitive market offers (such as GloBird and OVO) frequently offer supply charges under 98c/day.`);
+    insights.push(`Current supply charge is ${currentSupplyChargeCents}c/day. Top tier market plans from GloBird and OVO offer supply charges under 96c/day.`);
   }
   if (currentUsageRateCents) {
     insights.push(`Your usage rate is approximately ${currentUsageRateCents}c/kWh.`);
   }
-  if (evDetected) {
-    insights.push('EV charging detected. Moving to an 8c/kWh super off-peak rate or Free Power Window could yield significant savings.');
-  }
   if (batteryDetected) {
-    insights.push('Home battery detected. Pairing a large battery (10-50kWh) with midday Free Power Hours allows zero-cost power storage.');
+    insights.push('Home battery detected. Plans like GloBird ZEROHERO offer 11am-2pm free power to soak your battery and $1.00/day reward for zero peak grid consumption.');
   }
 
   return {
@@ -100,7 +86,7 @@ function parseTextWithoutMockData(text: string): BillAnalysisResult {
     evDetected,
     batteryDetected,
     insights,
-    recommendationSummary: `Parsed from your ${retailer} bill. Check our comparison table to find plans with lower supply charges and free power hours.`
+    recommendationSummary: `Parsed from your ${retailer} bill. Check our comparison table and wholesale simulator to see how GloBird ZEROHERO, WholeSave, or FreeLunch compares.`
   };
 }
 
@@ -211,7 +197,14 @@ ${contextSummary}
 User question:
 "${query}"
 
-Explain in simple, encouraging terms without confusing industry jargon. Mention specific retailers like GloBird Energy, OVO, Amber, or AGL when relevant. If mentioning 40kWh or 50kWh batteries, Free Power Hours, or DMO benchmarks, explain what it means in dollar terms for everyday Aussies. Keep it concise (under 160 words).`;
+Important knowledge:
+- GloBird Energy's ZEROHERO plan rewards exactly $1.00 PER DAY if your household uses ZERO grid power during peak periods (4:00pm - 9:00pm).
+- ZEROHERO also includes the 11:00am - 2:00pm FreeLunch window (0c/kWh).
+- Note that during a 3-hour zero cost window, battery charging is physically limited by the customer's inverter rating (kW). A 5kW inverter can draw at most 15kWh in 3 hours, so a 40kWh or 50kWh battery cannot fully charge from 0 to 100% in 3 hours alone.
+- Feed-in tariffs often have daily caps (e.g. 14kWh/day) after which the export rate drops.
+- Negative bill totals are completely valid when solar feed-in credits and ZEROHERO rewards exceed supply and usage charges (meaning the customer is in credit).
+
+Explain in simple, encouraging terms without confusing industry jargon. Keep it concise (under 160 words).`;
 
     const res = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
@@ -220,15 +213,15 @@ Explain in simple, encouraging terms without confusing industry jargon. Mention 
 
     return res.text || 'We could not process your query right now. Please try again.';
   } catch (err: any) {
-    if (/globird|glo bird/i.test(query)) {
-      return "GloBird Energy is a prominent Australian discount retailer offering aggressive market rates (like GloSave and FreeLunch). Their FreeLunch tariff offers free power from 11am to 2pm daily, making it ideal for charging large 40kWh-50kWh battery banks or running heavy appliances at zero cost.";
+    if (/zerohero|zero hero/i.test(query)) {
+      return "GloBird's ZEROHERO plan rewards you with $1.00 per day (up to $365/year) whenever you use zero grid power during peak hours (4pm-9pm). Combined with the 11am-2pm FreeLunch window, you can charge your battery for $0 at midday, power your home in peak, and collect your $1/day reward!";
     }
-    if (/40|50|battery|capacity/i.test(query)) {
-      return "With a 40kWh or 50kWh battery bank, your home has exceptional energy independence! You can soak 30-40kWh of 100% free electricity during midday Free Power Hours (e.g. GloBird FreeLunch or OVO), wiping out almost all peak and shoulder grid usage throughout the evening and night.";
+    if (/inverter|speed|kw/i.test(query)) {
+      return "Remember that in a 3-hour free power window, charging is limited by your inverter kW rating. A 5kW inverter can draw a maximum of 15kWh, while a 10kW inverter can absorb 30kWh. That's why 40kWh-50kWh batteries rely on both the free grid window and daytime rooftop solar.";
     }
-    if (/free power|hours|11am|2pm/i.test(query)) {
-      return "Plans with Free Power Hours (such as GloBird FreeLunch or OVO 11am-2pm) provide $0.00/kWh grid power. Programming your inverter to soak during this 3-hour window allows you to store tens of kilowatt-hours for free.";
+    if (/credit|negative/i.test(query)) {
+      return "Yes! If your solar feed-in credits and ZEROHERO peak rewards exceed your daily supply and usage charges, your estimated bill will accurately show as a net credit (money owed to you by your retailer).";
     }
-    return "Check for plans offering at least 20% to 26% off the AER Reference Price (DMO). This protects you from overpaying on default rates.";
+    return "Check our Comparison Table and Wholesale Simulator to model your inverter speed, GloBird ZEROHERO rewards, and solar export caps.";
   }
 }
