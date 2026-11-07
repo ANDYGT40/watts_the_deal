@@ -1,3 +1,4 @@
+// Fix: Add ArrowRight to lucide-react imports
 import React, { useState, useMemo } from 'react';
 import { HouseholdProfile, EnergyPlan, TariffType, DistributorInfo } from './types';
 import { SAMPLE_AER_PLANS, DISTRIBUTORS } from './constants';
@@ -10,6 +11,7 @@ import { BillScanner } from './components/BillScanner';
 import { JargonModal } from './components/JargonModal';
 import { AiAdvisorChat } from './components/AiAdvisorChat';
 import { AerReferenceGuide } from './components/AerReferenceGuide';
+import { WholesaleBatterySimulator } from './components/WholesaleBatterySimulator';
 import { 
   Filter, 
   ArrowUpDown, 
@@ -26,12 +28,13 @@ import {
   Zap,
   Clock,
   Building2,
-  RefreshCw,
-  Check
+  TrendingUp,
+  DollarSign,
+  ArrowRight
 } from 'lucide-react';
 
 export function App() {
-  const [activeTab, setActiveTab] = useState<'compare' | 'scanner' | 'glossary' | 'aerData'>('compare');
+  const [activeTab, setActiveTab] = useState<'compare' | 'wholesale' | 'scanner' | 'glossary' | 'aerData'>('compare');
   const [isJargonModalOpen, setIsJargonModalOpen] = useState(false);
 
   // Household Profile State with default 40kWh Battery & Postcode 3756
@@ -56,15 +59,17 @@ export function App() {
     // 40kWh Battery default for high energy independence
     hasBattery: true,
     batteryCapacityKWh: 40,
+    batteryMaxDischargeKw: 10,
     batteryChargingSource: 'FREE_POWER_HOURS_SOAK',
     joinVpp: true,
+    participateInZeroHero: true,
   });
 
   // Selected distributor override (allows picking between 2 possible networks)
   const [selectedDistributorCode, setSelectedDistributorCode] = useState<string>('AUSNET');
 
   // Filters & Sorting
-  const [retailerFilter, setRetailerFilter] = useState<string>('ALL'); // 'ALL' | 'GloBird Energy' | etc.
+  const [retailerFilter, setRetailerFilter] = useState<string>('ALL');
   const [tariffFilter, setTariffFilter] = useState<'ALL' | 'FLAT' | 'TOU'>('ALL');
   const [pricingFilter, setPricingFilter] = useState<'ALL' | 'VARIABLE' | 'FIXED'>('ALL');
   const [greenOnly, setGreenOnly] = useState(false);
@@ -72,6 +77,7 @@ export function App() {
   const [evOnly, setEvOnly] = useState(false);
   const [batteryOnly, setBatteryOnly] = useState(false);
   const [freePowerOnly, setFreePowerOnly] = useState(false);
+  const [zeroHeroOnly, setZeroHeroOnly] = useState(false);
   const [sortBy, setSortBy] = useState<'LOWEST_COST' | 'MAX_SAVINGS' | 'SOLAR_FIT' | 'RATING'>('LOWEST_COST');
 
   // Multi-plan compare selection
@@ -164,6 +170,10 @@ export function App() {
         return false;
       }
 
+      if (zeroHeroOnly && !plan.hasZeroHeroIncentive) {
+        return false;
+      }
+
       return true;
     }).sort((a, b) => {
       const costA = calculatePlanCost(a, profile, currentDistributor);
@@ -183,7 +193,7 @@ export function App() {
       }
       return 0;
     });
-  }, [currentDistributor, retailerFilter, tariffFilter, pricingFilter, greenOnly, solarPriority, evOnly, batteryOnly, freePowerOnly, sortBy, profile]);
+  }, [currentDistributor, retailerFilter, tariffFilter, pricingFilter, greenOnly, solarPriority, evOnly, batteryOnly, freePowerOnly, zeroHeroOnly, sortBy, profile]);
 
   const toggleCompare = (planId: string) => {
     if (comparedPlanIds.includes(planId)) {
@@ -210,6 +220,7 @@ export function App() {
     setEvOnly(false);
     setBatteryOnly(false);
     setFreePowerOnly(false);
+    setZeroHeroOnly(false);
   };
 
   return (
@@ -229,21 +240,19 @@ export function App() {
             </span>
             <div>
               <p className="font-bold text-amber-950">
-                Network: {currentDistributor.name} (Postcode {profile.postcode}) • Benchmark: ${currentDistributor.defaultMarketOfferAnnual}/yr
+                Network: {currentDistributor.name} • Benchmark: ${currentDistributor.defaultMarketOfferAnnual}/yr
               </p>
               <p className="text-amber-800 text-[11px]">
-                {profile.batteryCapacityKWh >= 30 
-                  ? `With your ${profile.batteryCapacityKWh}kWh battery, GloBird Energy's FreeLunch (11am-2pm 0c/kWh), OVO Energy, or Amber allows you to soak free power every midday.`
-                  : 'Check your electricity bill to confirm your exact network distributor if you live near network boundaries.'}
+                Compare <strong>Amber Wholesale spot spikes</strong> vs <strong>GloBird FreeLunch (0c 11am-2pm)</strong> and <strong>GloBird ZEROHERO ($1.00/kWh incentive)</strong> for your {profile.batteryCapacityKWh}kWh battery.
               </p>
             </div>
           </div>
           <button
-            onClick={() => setIsJargonModalOpen(true)}
-            className="self-start sm:self-auto px-3 py-1.5 bg-amber-200/70 hover:bg-amber-300 font-bold text-amber-900 rounded-lg text-xs transition-colors flex items-center gap-1"
+            onClick={() => setActiveTab('wholesale')}
+            className="self-start sm:self-auto px-3 py-1.5 bg-amber-500 hover:bg-amber-400 font-extrabold text-slate-950 rounded-lg text-xs transition-colors flex items-center gap-1 shadow-sm"
           >
-            <HelpCircle className="w-3.5 h-3.5" />
-            Learn What DMO/VDO Means
+            <TrendingUp className="w-3.5 h-3.5" />
+            Launch Wholesale Simulator
           </button>
         </div>
 
@@ -259,7 +268,7 @@ export function App() {
             />
 
             {/* Filter & Sort Bar */}
-            <div className="bg-white rounded-2xl p-4 border border-slate-200/90 shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div id="compare-table-top" className="bg-white rounded-2xl p-4 border border-slate-200/90 shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-4">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-xs font-bold text-slate-500 flex items-center gap-1 mr-1">
                   <Filter className="w-3.5 h-3.5" /> Filter:
@@ -276,11 +285,25 @@ export function App() {
                     <option value="ALL">All Retailers ({availableRetailers.length})</option>
                     {availableRetailers.map((ret) => (
                       <option key={ret} value={ret}>
-                        {ret} {ret === 'GloBird Energy' ? '⭐ (FreeLunch)' : ''}
+                        {ret} {ret === 'GloBird Energy' ? '⭐ (FreeLunch & ZEROHERO)' : ''}
                       </option>
                     ))}
                   </select>
                 </div>
+
+                {/* GloBird ZEROHERO $1/kWh Filter */}
+                <button
+                  type="button"
+                  onClick={() => setZeroHeroOnly(!zeroHeroOnly)}
+                  className={`text-xs px-2.5 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-colors ${
+                    zeroHeroOnly
+                      ? 'bg-emerald-600 text-white ring-2 ring-emerald-400'
+                      : 'bg-emerald-50 text-emerald-950 border border-emerald-300 hover:bg-emerald-100'
+                  }`}
+                >
+                  <DollarSign className="w-3.5 h-3.5 text-emerald-700" />
+                  ZEROHERO ($1/kWh Reward)
+                </button>
 
                 {/* Free Power Hours Button */}
                 <button
@@ -294,20 +317,6 @@ export function App() {
                 >
                   <Clock className="w-3.5 h-3.5 text-amber-700" />
                   Free Power Hours (0c)
-                </button>
-
-                {/* EV Friendly button */}
-                <button
-                  type="button"
-                  onClick={() => setEvOnly(!evOnly)}
-                  className={`text-xs px-2.5 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-colors ${
-                    evOnly
-                      ? 'bg-sky-600 text-white'
-                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                  }`}
-                >
-                  <Car className="w-3.5 h-3.5" />
-                  EV Night Rate (7c-8c)
                 </button>
 
                 {/* Battery / VPP button */}
@@ -324,6 +333,20 @@ export function App() {
                   Battery / VPP Ready
                 </button>
 
+                {/* EV Friendly button */}
+                <button
+                  type="button"
+                  onClick={() => setEvOnly(!evOnly)}
+                  className={`text-xs px-2.5 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-colors ${
+                    evOnly
+                      ? 'bg-sky-600 text-white'
+                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                  }`}
+                >
+                  <Car className="w-3.5 h-3.5" />
+                  EV Night Rate (7c-8c)
+                </button>
+
                 {/* Tariff Type */}
                 <select
                   value={tariffFilter}
@@ -334,20 +357,6 @@ export function App() {
                   <option value="FLAT">Single Flat Rate</option>
                   <option value="TOU">Time of Use</option>
                 </select>
-
-                {/* Green power filter */}
-                <button
-                  type="button"
-                  onClick={() => setGreenOnly(!greenOnly)}
-                  className={`text-xs px-2.5 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-colors ${
-                    greenOnly
-                      ? 'bg-emerald-700 text-white'
-                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                  }`}
-                >
-                  <Leaf className="w-3.5 h-3.5" />
-                  GreenPower
-                </button>
               </div>
 
               {/* Sort By */}
@@ -374,7 +383,6 @@ export function App() {
                 <div className="flex items-center justify-between text-xs text-slate-500">
                   <span>
                     Showing <strong>{filteredPlans.length} plans</strong> available for <strong>{currentDistributor.name}</strong>
-                    {retailerFilter !== 'ALL' ? ` (${retailerFilter})` : ''}
                   </span>
                   <div className="flex items-center gap-2">
                     {retailerFilter !== 'ALL' && (
@@ -399,10 +407,7 @@ export function App() {
 
                 {filteredPlans.length === 0 ? (
                   <div className="bg-white rounded-2xl p-8 text-center space-y-3 border border-slate-200">
-                    <p className="text-sm font-bold text-slate-700">No matching plans found for this filter combination in {currentDistributor.code}.</p>
-                    <p className="text-xs text-slate-500">
-                      You may have active filters applied (like "EV Night Rate" or "Free Power Hours"). Click below to view all offers.
-                    </p>
+                    <p className="text-sm font-bold text-slate-700">No matching plans found for this filter combination.</p>
                     <button
                       onClick={resetFilters}
                       className="px-4 py-2 bg-emerald-700 text-white rounded-xl text-xs font-bold"
@@ -425,7 +430,7 @@ export function App() {
                 )}
               </div>
 
-              {/* Sidebar */}
+              {/* Sidebar with Direct Link to Simulator */}
               <div className="space-y-6">
                 <AiAdvisorChat
                   profile={profile}
@@ -433,31 +438,39 @@ export function App() {
                   planCount={filteredPlans.length}
                 />
 
-                <div className="bg-slate-900 text-white rounded-2xl p-5 space-y-3 shadow-md">
+                {/* Wholesale Simulator Callout Banner */}
+                <div className="bg-gradient-to-br from-slate-900 to-emerald-950 text-white rounded-2xl p-5 space-y-3 shadow-md border border-emerald-900">
                   <div className="flex items-center gap-2 text-amber-400">
-                    <Sparkles className="w-4 h-4" />
+                    <TrendingUp className="w-4 h-4" />
                     <h4 className="text-xs font-bold uppercase tracking-wider">
-                      {profile.batteryCapacityKWh >= 30 ? `${profile.batteryCapacityKWh}kWh Mega Battery Optimization` : 'Battery + Free Power Soaking'}
+                      Wholesale Tracker & Discharge Simulator
                     </h4>
                   </div>
                   <p className="text-xs text-slate-300 leading-relaxed">
-                    In <strong>{currentDistributor.name}</strong>, plans like <strong>GloBird Energy</strong> ("FreeLunch 11am-2pm"), <strong>OVO Energy</strong>, and <strong>Amber Electric</strong> allow you to soak 100% free electricity.
-                    With your <strong>{profile.batteryCapacityKWh}kWh battery</strong>, filling for $0 at midday runs your evening peak at zero cost.
+                    Test your <strong>{profile.batteryCapacityKWh}kWh battery</strong> against extreme NEM spot spikes ($15/kWh) on Amber vs GloBird ZEROHERO ($1.00/kWh incentive) and FreeLunch.
                   </p>
-                  <div className="pt-2 border-t border-slate-800 flex items-center justify-between text-[11px] text-slate-400">
-                    <span>GloBird FreeLunch</span>
-                    <span>•</span>
-                    <span>$0.00 Grid Soak</span>
-                    <span>•</span>
-                    <span>{profile.batteryCapacityKWh}kWh Ready</span>
-                  </div>
+                  <button
+                    onClick={() => setActiveTab('wholesale')}
+                    className="w-full py-2 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black rounded-xl text-xs flex items-center justify-center gap-1.5 transition-colors"
+                  >
+                    <span>Launch Wholesale Simulator</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               </div>
             </div>
           </div>
         )}
 
-        {/* Tab 2: Bill Scanner */}
+        {/* Tab 2: Wholesale Simulator View */}
+        {activeTab === 'wholesale' && (
+          <WholesaleBatterySimulator
+            profile={profile}
+            distributor={currentDistributor}
+          />
+        )}
+
+        {/* Tab 3: Bill Scanner */}
         {activeTab === 'scanner' && (
           <BillScanner
             onApplyBillDataToProfile={(data) => {
@@ -471,20 +484,20 @@ export function App() {
           />
         )}
 
-        {/* Tab 3: Jargon Glossary View */}
+        {/* Tab 4: Jargon Glossary View */}
         {activeTab === 'glossary' && (
           <div className="max-w-4xl mx-auto space-y-4">
             <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-2">
               <h2 className="text-xl font-extrabold text-slate-900">Australian Electricity Jargon Explained</h2>
               <p className="text-xs text-slate-500">
-                A simple glossary of every term including AusNet Services (Mitchell Shire 3756), Free Power Hours, GloBird FreeLunch, and 40kWh-50kWh battery banks.
+                A simple glossary of every term including Amber Smartshift wholesale spot trading, GloBird FreeLunch, ZEROHERO $1.00/kWh incentives, and 40kWh-50kWh battery banks.
               </p>
             </div>
             <AerReferenceGuide />
           </div>
         )}
 
-        {/* Tab 4: AER Data Standards */}
+        {/* Tab 5: AER Data Standards */}
         {activeTab === 'aerData' && <AerReferenceGuide />}
       </main>
 
@@ -541,7 +554,7 @@ export function App() {
           <div className="bg-white rounded-3xl max-w-lg w-full shadow-2xl border border-slate-200 p-6 space-y-4">
             <div className="flex items-start justify-between">
               <div>
-                <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-700">WattWise Plan Breakdown</span>
+                <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-700">Watt's the Deal Plan Breakdown</span>
                 <h3 className="text-lg font-extrabold text-slate-900">{aiFocusPlan.retailerName} - {aiFocusPlan.planName}</h3>
               </div>
               <button
@@ -560,6 +573,11 @@ export function App() {
               <p>
                 This plan is <strong>{Math.abs(aiFocusPlan.dmoComparisonPercent)}% {aiFocusPlan.dmoComparisonPercent <= 0 ? 'less than' : 'above'} the Victorian Default Offer (VDO)</strong> in the {currentDistributor.name} network.
               </p>
+              {aiFocusPlan.hasZeroHeroIncentive && (
+                <p className="text-emerald-950 font-bold bg-emerald-100/90 p-2 rounded-lg">
+                  💰 ZEROHERO Payout: {aiFocusPlan.zeroHeroDescription}
+                </p>
+              )}
               {aiFocusPlan.hasFreePowerHours && (
                 <p className="text-amber-900 font-bold bg-amber-100/80 p-2 rounded-lg">
                   ⚡ Free Power Window: {aiFocusPlan.freePowerWindowDescription} — Perfect for soaking into a {profile.batteryCapacityKWh}kWh home battery for $0.00!
@@ -569,18 +587,6 @@ export function App() {
                 <strong>Daily Supply:</strong> {aiFocusPlan.rates.dailySupplyChargeCents}c/day • 
                 <strong> Usage:</strong> {aiFocusPlan.rates.flatRateCentsPerKWh ? `${aiFocusPlan.rates.flatRateCentsPerKWh}c/kWh flat` : `${aiFocusPlan.rates.peakRateCentsPerKWh}c peak`}.
               </p>
-              {aiFocusPlan.rates.evNightRateCentsPerKWh && (
-                <p className="text-sky-800 font-bold flex items-center gap-1">
-                  <Car className="w-3.5 h-3.5" />
-                  EV Super Off-Peak: {aiFocusPlan.rates.evNightRateCentsPerKWh}c/kWh ({aiFocusPlan.evRateDescription || 'Overnight'})
-                </p>
-              )}
-              {aiFocusPlan.isBatteryVppEligible && aiFocusPlan.vppAnnualCredit && (
-                <p className="text-emerald-800 font-bold flex items-center gap-1">
-                  <BatteryCharging className="w-3.5 h-3.5" />
-                  Battery VPP Bonus: ${aiFocusPlan.vppAnnualCredit}/yr ({aiFocusPlan.vppProviderName})
-                </p>
-              )}
             </div>
 
             <div className="flex items-center justify-end gap-2 pt-2">
@@ -609,7 +615,7 @@ export function App() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-4">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-2">
-              <span className="font-extrabold text-slate-800">WattWise Australia</span>
+              <span className="font-extrabold text-slate-800">Watt's the Deal Australia</span>
               <span>•</span>
               <span>Independent Energy, Solar, Battery & EV Comparison Tool</span>
             </div>
@@ -617,16 +623,16 @@ export function App() {
               <a href="https://www.aer.gov.au/energy-product-reference-data" target="_blank" rel="noreferrer" className="hover:text-emerald-700">
                 AER Product Data
               </a>
-              <a href="https://www.energymadeeasy.gov.au" target="_blank" rel="noreferrer" className="hover:text-emerald-700">
-                Energy Made Easy
-              </a>
+              <button onClick={() => setActiveTab('wholesale')} className="hover:text-emerald-700 font-bold text-amber-700">
+                Wholesale Tracker
+              </button>
               <button onClick={() => setIsJargonModalOpen(true)} className="hover:text-emerald-700">
                 Bill Anatomy Guide
               </button>
             </div>
           </div>
           <p className="text-[11px] text-slate-400 leading-relaxed">
-            WattWise is an independent consumer resource aligned with the Australian Energy Regulator (AER) Reference Price benchmarks and Victorian Default Offer (VDO) specifications. Calculations are estimates calibrated using household profiles, AusNet / Jemena / Powercor / CitiPower network distributors, rooftop solar, EV charging timing, and Free Power Hours battery soaking (including 40-50kWh arrays). Rates include GST. Always check the retailer's Basic Plan Information Document (BPID) before signing.
+            Watt's the Deal is an independent consumer resource aligned with the Australian Energy Regulator (AER) Reference Price benchmarks and Victorian Default Offer (VDO) specifications. Calculations are estimates calibrated using household profiles, AusNet / Jemena / Powercor / CitiPower network distributors, rooftop solar, EV charging timing, Free Power Hours battery soaking (including 40-50kWh arrays), GloBird ZEROHERO peak demand rewards, and Amber Smartshift wholesale spot modeling. Rates include GST. Always check the retailer's Basic Plan Information Document (BPID) before signing.
           </p>
         </div>
       </footer>
