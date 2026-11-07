@@ -19,6 +19,8 @@ export interface TariffRate {
   evNightRateCentsPerKWh?: number; // e.g. 8.0 c/kWh super off-peak midnight-6am
   controlledLoadCentsPerKWh?: number; // e.g. 19.5 c/kWh
   solarFeedInTariffCents?: number; // e.g. 7.0 c/kWh
+  peakSolarFeedInTariffCents?: number; // Special peak export FiT if offered
+  solarFeedInCapKWhPerDay?: number; // e.g. max 10 or 14 kWh/day eligible for high FiT rate before dropping to lower tier
 }
 
 export interface EnergyPlan {
@@ -43,6 +45,7 @@ export interface EnergyPlan {
   websiteUrl: string;
   phone: string;
   customerRating: number; // e.g. 4.3 out of 5
+  isCustomPlan?: boolean; // User created / custom imported plan
   
   // EV & Battery Provisions
   isEvPlan?: boolean;
@@ -54,11 +57,11 @@ export interface EnergyPlan {
   // Free Power Hours Provision
   hasFreePowerHours?: boolean;
   freePowerWindowDescription?: string;
-  freePowerHoursDaily?: number;
+  freePowerHoursDaily?: number; // Duration (e.g. 3 hours)
 
-  // GloBird ZeroHero / Demand Response Peak Curtailment Incentive
+  // GloBird ZeroHero: $1.00 per DAY incentive for zero grid draw in peak periods
   hasZeroHeroIncentive?: boolean;
-  zeroHeroPeakRewardPerKWhSaved?: number; // e.g. $1.00 / kWh rewarded for zero net peak draw or battery export
+  zeroHeroDailyRewardDollars?: number; // Exactly $1.00 per peak day with 0 grid import
   zeroHeroDescription?: string;
 }
 
@@ -83,7 +86,7 @@ export interface HouseholdProfile {
   // Home Battery Storage Provisions
   hasBattery: boolean;
   batteryCapacityKWh: number; // e.g. 5, 10, 13.5, 40, 50 kWh
-  batteryMaxDischargeKw?: number; // e.g. 5kW, 10kW or 15kW inverter rating
+  batteryInverterKw: number; // Continuous charge/discharge power limit (e.g. 5kW, 7kW, 10kW)
   batteryChargingSource: 'SOLAR_AND_GRID' | 'FREE_POWER_HOURS_SOAK' | 'SOLAR_ONLY';
   joinVpp: boolean;
 
