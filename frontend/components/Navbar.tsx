@@ -1,9 +1,9 @@
 import React from 'react';
-import { Zap, ShieldCheck, HelpCircle, FileText, ArrowRightLeft } from 'lucide-react';
+import { Zap, ShieldCheck, HelpCircle, FileText, ArrowRightLeft, TrendingUp } from 'lucide-react';
 
 interface NavbarProps {
-  activeTab: 'compare' | 'scanner' | 'glossary' | 'aerData';
-  setActiveTab: (tab: 'compare' | 'scanner' | 'glossary' | 'aerData') => void;
+  activeTab: 'compare' | 'wholesale' | 'scanner' | 'glossary' | 'aerData';
+  setActiveTab: (tab: 'compare' | 'wholesale' | 'scanner' | 'glossary' | 'aerData') => void;
   onOpenJargonModal: () => void;
 }
 
@@ -19,7 +19,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenJ
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-xl font-extrabold tracking-tight text-slate-900">WattWise</span>
+                <span className="text-xl font-extrabold tracking-tight text-slate-900">Watt's the Deal</span>
                 <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold tracking-wide uppercase">
                   AER Reference
                 </span>
@@ -40,6 +40,17 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenJ
             >
               <ArrowRightLeft className="w-4 h-4" />
               Compare Plans
+            </button>
+            <button
+              onClick={() => setActiveTab('wholesale')}
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-sm font-semibold transition-all ${
+                activeTab === 'wholesale'
+                  ? 'bg-white text-emerald-800 shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <TrendingUp className="w-4 h-4 text-amber-600" />
+              Wholesale vs FreeLunch Simulator
             </button>
             <button
               onClick={() => setActiveTab('scanner')}
@@ -97,6 +108,14 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenJ
             }`}
           >
             Compare Plans
+          </button>
+          <button
+            onClick={() => setActiveTab('wholesale')}
+            className={`px-3 py-1.5 rounded-md font-semibold whitespace-nowrap ${
+              activeTab === 'wholesale' ? 'bg-emerald-700 text-white' : 'bg-slate-100 text-slate-700'
+            }`}
+          >
+            Wholesale Simulator
           </button>
           <button
             onClick={() => setActiveTab('scanner')}
