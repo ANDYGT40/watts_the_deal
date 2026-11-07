@@ -115,7 +115,7 @@ export async function analyzeEnergyBillWithGemini(
   try {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY, vertexai: true });
 
-    const systemPrompt = `You are a licensed Australian Energy Regulator (AER) consumer advocate and expert electricity bill analyst.
+    const systemPrompt = `You are a licensed Australian Energy Regulator (AER) consumer advocate and expert electricity bill analyst for "Watt's the Deal".
 Analyze the provided Australian energy bill (GloBird Energy, Origin, AGL, EnergyAustralia, Red Energy, Alinta, Powershop, OVO, Amber, etc.).
 Extract the REAL figures present in the bill. Do NOT hallucinate or invent dummy figures.
 Extract into JSON:
@@ -204,7 +204,7 @@ export async function askEnergyAdvisor(query: string, contextSummary: string): P
   try {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY, vertexai: true });
 
-    const prompt = `You are "WattWise", an independent, warm and friendly Australian energy consumer advisor.
+    const prompt = `You are "Watt's the Deal", an independent, warm and friendly Australian energy consumer advisor.
 Context about the user's situation:
 ${contextSummary}
 
