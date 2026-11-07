@@ -141,10 +141,10 @@ Payment Due Date: 28 Jan 2025`;
             Gemini 2.5 AI Bill Reader & Analyzer
           </div>
           <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-            Scan Your Real Electricity Bill
+            Watt's the Deal with Your Power Bill?
           </h2>
           <p className="text-slate-300 text-xs sm:text-sm">
-            WattWise parses your actual daily consumption, supply charges, and NMI to show exact comparisons against the AER Default Market Offer benchmark without fabricating figures.
+            Watt's the Deal parses your actual daily consumption, supply charges, and NMI to show exact comparisons against the AER Default Market Offer benchmark without fabricating figures.
           </p>
         </div>
       </div>
@@ -382,7 +382,7 @@ Payment Due Date: 28 Jan 2025`;
           <div className="bg-emerald-50/70 rounded-2xl p-4 border border-emerald-200 space-y-2">
             <h4 className="text-xs font-bold uppercase tracking-wider text-emerald-900 flex items-center gap-1.5">
               <Sparkles className="w-3.5 h-3.5 text-emerald-700" />
-              WattWise AI Assessment & Savings Opportunity
+              Watt's the Deal AI Assessment & Savings Opportunity
             </h4>
             <ul className="space-y-1.5 text-xs text-slate-700">
               {result.insights.map((ins, i) => (
