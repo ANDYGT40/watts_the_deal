@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { HouseholdProfile, DistributorInfo } from '../types';
 import { DISTRIBUTORS } from '../constants';
-import { MapPin, Users, Sun, Gauge, DollarSign, Car, BatteryCharging, Zap, ShieldCheck, Clock, Network } from 'lucide-react';
+import { MapPin, Users, Sun, Gauge, DollarSign, Car, BatteryCharging, Zap, ShieldCheck, Clock, Network, AlertCircle } from 'lucide-react';
 
 interface HouseholdFormProps {
   profile: HouseholdProfile;
@@ -31,8 +31,8 @@ export const HouseholdForm: React.FC<HouseholdFormProps> = ({
   };
 
   const batteryPresets = [10, 13.5, 20, 30, 40, 50];
+  const inverterPresets = [5, 7, 10, 15, 20];
 
-  // Detect which distributors are possible for this postcode or state
   const possibleDistributors = useMemo(() => {
     const p = parseInt(profile.postcode, 10);
     if (isNaN(p)) return DISTRIBUTORS.filter(d => d.state === profile.state);
@@ -47,6 +47,11 @@ export const HouseholdForm: React.FC<HouseholdFormProps> = ({
 
   const hasMultipleDistributors = possibleDistributors.length > 1;
 
+  // Maximum energy that can be drawn from grid in a 3-hour window
+  const currentInverterKw = profile.batteryInverterKw || (profile.batteryCapacityKWh >= 30 ? 10 : 5);
+  const maxThreeHourSoakKWh = currentInverterKw * 3;
+  const isBatteryRestrictedByInverter = profile.hasBattery && (profile.batteryCapacityKWh * 0.90) > maxThreeHourSoakKWh;
+
   return (
     <div className="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200/90 shadow-sm space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
@@ -60,7 +65,6 @@ export const HouseholdForm: React.FC<HouseholdFormProps> = ({
           </p>
         </div>
         
-        {/* Network Badge / Quick Switcher */}
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 border border-emerald-200 rounded-lg text-xs font-semibold text-emerald-900">
             <Network className="w-3.5 h-3.5 text-emerald-600" />
@@ -69,7 +73,7 @@ export const HouseholdForm: React.FC<HouseholdFormProps> = ({
         </div>
       </div>
 
-      {/* Network Provider Selector (especially for boundary postcodes where two networks overlap) */}
+      {/* Network Provider Selector */}
       <div className={`p-3.5 rounded-xl border transition-all ${hasMultipleDistributors ? 'bg-amber-50/70 border-amber-300' : 'bg-slate-50 border-slate-200'}`}>
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-2">
@@ -120,7 +124,6 @@ export const HouseholdForm: React.FC<HouseholdFormProps> = ({
 
       {/* Basic Profile Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Postcode & State */}
         <div>
           <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
             Postcode
@@ -134,7 +137,7 @@ export const HouseholdForm: React.FC<HouseholdFormProps> = ({
                 const val = e.target.value.replace(/\D/g, '');
                 onChangeProfile({ ...profile, postcode: val });
               }}
-              placeholder="e.g. 2145 or 3000"
+              placeholder="e.g. 3756 or 2145"
               className="w-full pl-9 pr-3 py-2 text-sm bg-slate-50 border border-slate-300 rounded-xl font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white"
             />
             <MapPin className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
@@ -144,7 +147,6 @@ export const HouseholdForm: React.FC<HouseholdFormProps> = ({
           </span>
         </div>
 
-        {/* Occupants */}
         <div>
           <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
             Household Occupants
@@ -173,7 +175,6 @@ export const HouseholdForm: React.FC<HouseholdFormProps> = ({
           </span>
         </div>
 
-        {/* Daily Usage Slider */}
         <div>
           <div className="flex justify-between items-center mb-1.5">
             <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
@@ -201,7 +202,6 @@ export const HouseholdForm: React.FC<HouseholdFormProps> = ({
           </div>
         </div>
 
-        {/* Current Quarterly Spend */}
         <div>
           <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
             Current Bill (Optional)
@@ -209,7 +209,7 @@ export const HouseholdForm: React.FC<HouseholdFormProps> = ({
           <div className="relative">
             <input
               type="number"
-              placeholder="e.g. 520"
+              placeholder="e.g. 540"
               value={profile.currentQuarterlyBillCost || ''}
               onChange={(e) =>
                 onChangeProfile({
@@ -245,7 +245,7 @@ export const HouseholdForm: React.FC<HouseholdFormProps> = ({
                 </div>
                 <div>
                   <h4 className="text-xs font-bold text-slate-900">Rooftop Solar</h4>
-                  <p className="text-[10px] text-slate-500">Export credits (FiT)</p>
+                  <p className="text-[10px] text-slate-500">Capped daily FiT tiers</p>
                 </div>
               </div>
               <input
@@ -285,7 +285,7 @@ export const HouseholdForm: React.FC<HouseholdFormProps> = ({
             )}
           </div>
 
-          {/* 2. Home Battery Storage (Supports 5kWh up to 50kWh+) */}
+          {/* 2. Home Battery Storage (With Inverter Speed Limitation) */}
           <div className={`p-4 rounded-2xl border transition-all ${profile.hasBattery ? 'border-emerald-300 bg-emerald-50/50 shadow-sm' : 'border-slate-200 bg-slate-50/60'}`}>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -305,6 +305,7 @@ export const HouseholdForm: React.FC<HouseholdFormProps> = ({
                     ...profile,
                     hasBattery: e.target.checked,
                     batteryCapacityKWh: e.target.checked ? (profile.batteryCapacityKWh || 40) : 0,
+                    batteryInverterKw: e.target.checked ? (profile.batteryInverterKw || 10) : 5,
                     batteryChargingSource: 'FREE_POWER_HOURS_SOAK',
                     joinVpp: e.target.checked ? true : false,
                   })
@@ -334,7 +335,7 @@ export const HouseholdForm: React.FC<HouseholdFormProps> = ({
                     </div>
                   </div>
 
-                  {/* Preset Pills including 40kWh & 50kWh */}
+                  {/* Preset Pills */}
                   <div className="flex flex-wrap gap-1 pt-0.5">
                     {batteryPresets.map((preset) => (
                       <button
@@ -353,6 +354,40 @@ export const HouseholdForm: React.FC<HouseholdFormProps> = ({
                   </div>
                 </div>
 
+                {/* Battery Inverter Power Limit (Crucial for 3-hour zero cost intake) */}
+                <div className="p-2 bg-white rounded-xl border border-emerald-200 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-slate-600 font-bold uppercase tracking-wider">Inverter Continuous Rate:</span>
+                    <span className="font-mono font-black text-emerald-800 text-xs">
+                      {currentInverterKw} kW
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    {inverterPresets.map((kw) => (
+                      <button
+                        key={kw}
+                        type="button"
+                        onClick={() => onChangeProfile({ ...profile, batteryInverterKw: kw })}
+                        className={`flex-1 py-1 rounded text-[10px] font-bold transition-all ${
+                          currentInverterKw === kw
+                            ? 'bg-slate-900 text-white shadow-xs'
+                            : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                        }`}
+                      >
+                        {kw}kW
+                      </button>
+                    ))}
+                  </div>
+                  {isBatteryRestrictedByInverter && (
+                    <p className="text-[10px] text-amber-800 leading-tight pt-1 flex items-start gap-1">
+                      <AlertCircle className="w-3 h-3 text-amber-600 flex-shrink-0 mt-0.5" />
+                      <span>
+                        In a 3-hour free window, a <strong>{currentInverterKw}kW inverter</strong> can draw at most <strong>{maxThreeHourSoakKWh}kWh</strong>. Your {profile.batteryCapacityKWh}kWh battery cannot fully charge from 0 to 100% in 3 hours alone.
+                      </span>
+                    </p>
+                  )}
+                </div>
+
                 <div>
                   <label className="block text-[10px] text-slate-600 font-semibold mb-0.5">Battery Charge Source:</label>
                   <select
@@ -362,7 +397,7 @@ export const HouseholdForm: React.FC<HouseholdFormProps> = ({
                     }
                     className="w-full text-[11px] font-bold bg-white border border-emerald-300 rounded-lg px-2 py-1 text-emerald-950"
                   >
-                    <option value="FREE_POWER_HOURS_SOAK">⚡ Free Power Hours (0c/kWh Grid Soak)</option>
+                    <option value="FREE_POWER_HOURS_SOAK">⚡ Free Power Hours (Max {maxThreeHourSoakKWh}kWh in 3h)</option>
                     <option value="SOLAR_AND_GRID">Solar + Off-Peak Grid</option>
                     <option value="SOLAR_ONLY">Rooftop Solar Only</option>
                   </select>
