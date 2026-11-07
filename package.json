@@ -1,5 +1,5 @@
 {
-  "name": "wattwise-australia-energy-plan-comparator",
+  "name": "watt-s-the-deal-energy-plan-comparator",
   "workspaces": ["frontend", "backend"], 
   "scripts": {
     "dev-frontend": "npm run dev --prefix frontend",
