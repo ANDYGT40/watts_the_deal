@@ -1,4 +1,3 @@
-// Fix: Add ArrowRight to lucide-react imports
 import React, { useState, useMemo } from 'react';
 import { HouseholdProfile, EnergyPlan, TariffType, DistributorInfo } from './types';
 import { SAMPLE_AER_PLANS, DISTRIBUTORS } from './constants';
@@ -12,6 +11,7 @@ import { JargonModal } from './components/JargonModal';
 import { AiAdvisorChat } from './components/AiAdvisorChat';
 import { AerReferenceGuide } from './components/AerReferenceGuide';
 import { WholesaleBatterySimulator } from './components/WholesaleBatterySimulator';
+import { ManualPlanModal } from './components/ManualPlanModal';
 import { 
   Filter, 
   ArrowUpDown, 
@@ -30,12 +30,15 @@ import {
   Building2,
   TrendingUp,
   DollarSign,
-  ArrowRight
+  ArrowRight,
+  Search,
+  Plus
 } from 'lucide-react';
 
 export function App() {
   const [activeTab, setActiveTab] = useState<'compare' | 'wholesale' | 'scanner' | 'glossary' | 'aerData'>('compare');
   const [isJargonModalOpen, setIsJargonModalOpen] = useState(false);
+  const [isManualPlanModalOpen, setIsManualPlanModalOpen] = useState(false);
 
   // Household Profile State with default 40kWh Battery & Postcode 3756
   const [profile, setProfile] = useState<HouseholdProfile>({
@@ -68,6 +71,12 @@ export function App() {
   // Selected distributor override (allows picking between 2 possible networks)
   const [selectedDistributorCode, setSelectedDistributorCode] = useState<string>('AUSNET');
 
+  // Search query state for instant plan keyword search
+  const [searchQuery, setSearchQuery] = useState<string>('');
+
+  // User created custom plans
+  const [customPlans, setCustomPlans] = useState<EnergyPlan[]>([]);
+
   // Filters & Sorting
   const [retailerFilter, setRetailerFilter] = useState<string>('ALL');
   const [tariffFilter, setTariffFilter] = useState<'ALL' | 'FLAT' | 'TOU'>('ALL');
@@ -94,6 +103,11 @@ export function App() {
     return detectDistributorFromPostcode(profile.postcode);
   }, [selectedDistributorCode, profile.postcode]);
 
+  // Combine standard sample plans with user added custom plans
+  const allAvailablePlans = useMemo(() => {
+    return [...SAMPLE_AER_PLANS, ...customPlans];
+  }, [customPlans]);
+
   // Handle changes from form
   const handleProfileChange = (updated: HouseholdProfile) => {
     const autoDist = detectDistributorFromPostcode(updated.postcode);
@@ -119,23 +133,40 @@ export function App() {
     }
   };
 
+  const handleAddCustomPlan = (newPlan: EnergyPlan) => {
+    setCustomPlans(prev => [newPlan, ...prev]);
+    // Auto add to compare
+    setComparedPlanIds(prev => [...prev, newPlan.id]);
+  };
+
   // Distinct list of retailers available in plans for the current distributor
   const availableRetailers = useMemo(() => {
     const set = new Set<string>();
-    SAMPLE_AER_PLANS.forEach(p => {
+    allAvailablePlans.forEach(p => {
       if (p.distributorCode === currentDistributor.code) {
         set.add(p.retailerName);
       }
     });
     return Array.from(set);
-  }, [currentDistributor]);
+  }, [allAvailablePlans, currentDistributor]);
 
-  // Filter plans based on selected network distributor
+  // Filter plans based on selected network distributor, search query, and filters
   const filteredPlans = useMemo(() => {
-    return SAMPLE_AER_PLANS.filter((plan) => {
+    return allAvailablePlans.filter((plan) => {
       // Distributor match
       const distributorMatch = plan.distributorCode === currentDistributor.code;
       if (!distributorMatch) return false;
+
+      // Search keyword filter (matches plan name, retailer, or features like WholeSave)
+      if (searchQuery.trim()) {
+        const query = searchQuery.toLowerCase().trim();
+        const matchesName = plan.planName.toLowerCase().includes(query);
+        const matchesRetailer = plan.retailerName.toLowerCase().includes(query);
+        const matchesFeatures = plan.features.some(f => f.toLowerCase().includes(query));
+        if (!matchesName && !matchesRetailer && !matchesFeatures) {
+          return false;
+        }
+      }
 
       // Retailer Filter (e.g. GloBird Energy specifically)
       if (retailerFilter !== 'ALL' && plan.retailerName !== retailerFilter) {
@@ -193,14 +224,14 @@ export function App() {
       }
       return 0;
     });
-  }, [currentDistributor, retailerFilter, tariffFilter, pricingFilter, greenOnly, solarPriority, evOnly, batteryOnly, freePowerOnly, zeroHeroOnly, sortBy, profile]);
+  }, [allAvailablePlans, currentDistributor, searchQuery, retailerFilter, tariffFilter, pricingFilter, greenOnly, solarPriority, evOnly, batteryOnly, freePowerOnly, zeroHeroOnly, sortBy, profile]);
 
   const toggleCompare = (planId: string) => {
     if (comparedPlanIds.includes(planId)) {
       setComparedPlanIds(comparedPlanIds.filter((id) => id !== planId));
     } else {
-      if (comparedPlanIds.length >= 3) {
-        alert('You can compare up to 3 plans side-by-side.');
+      if (comparedPlanIds.length >= 4) {
+        alert('You can compare up to 4 plans side-by-side.');
         return;
       }
       setComparedPlanIds([...comparedPlanIds, planId]);
@@ -208,10 +239,11 @@ export function App() {
   };
 
   const comparedPlans = useMemo(() => {
-    return SAMPLE_AER_PLANS.filter((p) => comparedPlanIds.includes(p.id));
-  }, [comparedPlanIds]);
+    return allAvailablePlans.filter((p) => comparedPlanIds.includes(p.id));
+  }, [allAvailablePlans, comparedPlanIds]);
 
   const resetFilters = () => {
+    setSearchQuery('');
     setRetailerFilter('ALL');
     setTariffFilter('ALL');
     setPricingFilter('ALL');
@@ -243,17 +275,26 @@ export function App() {
                 Network: {currentDistributor.name} • Benchmark: ${currentDistributor.defaultMarketOfferAnnual}/yr
               </p>
               <p className="text-amber-800 text-[11px]">
-                Compare <strong>Amber Wholesale spot spikes</strong> vs <strong>GloBird FreeLunch (0c 11am-2pm)</strong> and <strong>GloBird ZEROHERO ($1.00/kWh incentive)</strong> for your {profile.batteryCapacityKWh}kWh battery.
+                Search all retail offers like <strong>GloBird WholeSave</strong>, <strong>GloBird FreeLunch (0c 11am-2pm)</strong>, and <strong>ZEROHERO</strong> or manually add any plan to compare.
               </p>
             </div>
           </div>
-          <button
-            onClick={() => setActiveTab('wholesale')}
-            className="self-start sm:self-auto px-3 py-1.5 bg-amber-500 hover:bg-amber-400 font-extrabold text-slate-950 rounded-lg text-xs transition-colors flex items-center gap-1 shadow-sm"
-          >
-            <TrendingUp className="w-3.5 h-3.5" />
-            Launch Wholesale Simulator
-          </button>
+          <div className="flex items-center gap-2 self-start sm:self-auto">
+            <button
+              onClick={() => setIsManualPlanModalOpen(true)}
+              className="px-3 py-1.5 bg-white hover:bg-slate-100 font-extrabold text-slate-900 border border-slate-300 rounded-lg text-xs transition-colors flex items-center gap-1 shadow-sm"
+            >
+              <Plus className="w-3.5 h-3.5 text-emerald-600" />
+              Add Custom Plan
+            </button>
+            <button
+              onClick={() => setActiveTab('wholesale')}
+              className="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 font-extrabold text-slate-950 rounded-lg text-xs transition-colors flex items-center gap-1 shadow-sm"
+            >
+              <TrendingUp className="w-3.5 h-3.5" />
+              Wholesale Simulator
+            </button>
+          </div>
         </div>
 
         {/* Tab 1: Compare View */}
@@ -267,113 +308,148 @@ export function App() {
               onSelectDistributor={handleSelectDistributor}
             />
 
-            {/* Filter & Sort Bar */}
-            <div id="compare-table-top" className="bg-white rounded-2xl p-4 border border-slate-200/90 shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-xs font-bold text-slate-500 flex items-center gap-1 mr-1">
-                  <Filter className="w-3.5 h-3.5" /> Filter:
-                </span>
+            {/* Plan Search & Filter Bar */}
+            <div id="compare-table-top" className="bg-white rounded-2xl p-4 border border-slate-200/90 shadow-sm space-y-3">
+              {/* Keyword Search & Manual Add Row */}
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+                <div className="relative w-full sm:max-w-md">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search plans (e.g. 'WholeSave', 'FreeLunch', 'ZEROHERO', 'AGL')..."
+                    className="w-full pl-9 pr-8 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                  {searchQuery && (
+                    <button
+                      onClick={() => setSearchQuery('')}
+                      className="absolute right-2.5 top-2 text-slate-400 hover:text-slate-600"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
 
-                {/* Retailer Selector Dropdown */}
-                <div className="flex items-center gap-1 bg-slate-50 border border-slate-300 rounded-lg px-2 py-1">
-                  <Building2 className="w-3.5 h-3.5 text-slate-500" />
-                  <select
-                    value={retailerFilter}
-                    onChange={(e) => setRetailerFilter(e.target.value)}
-                    className="text-xs font-bold bg-transparent text-slate-900 focus:outline-none"
+                <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                  <button
+                    onClick={() => setIsManualPlanModalOpen(true)}
+                    className="px-3.5 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white font-extrabold text-xs rounded-xl flex items-center gap-1.5 shadow-sm transition-colors"
                   >
-                    <option value="ALL">All Retailers ({availableRetailers.length})</option>
-                    {availableRetailers.map((ret) => (
-                      <option key={ret} value={ret}>
-                        {ret} {ret === 'GloBird Energy' ? '⭐ (FreeLunch & ZEROHERO)' : ''}
-                      </option>
-                    ))}
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Enter Manual Plan Rates</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Filter Chips Row */}
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-100">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-bold text-slate-500 flex items-center gap-1 mr-1">
+                    <Filter className="w-3.5 h-3.5" /> Filter:
+                  </span>
+
+                  {/* Retailer Selector Dropdown */}
+                  <div className="flex items-center gap-1 bg-slate-50 border border-slate-300 rounded-lg px-2 py-1">
+                    <Building2 className="w-3.5 h-3.5 text-slate-500" />
+                    <select
+                      value={retailerFilter}
+                      onChange={(e) => setRetailerFilter(e.target.value)}
+                      className="text-xs font-bold bg-transparent text-slate-900 focus:outline-none"
+                    >
+                      <option value="ALL">All Retailers ({availableRetailers.length})</option>
+                      {availableRetailers.map((ret) => (
+                        <option key={ret} value={ret}>
+                          {ret} {ret === 'GloBird Energy' ? '⭐' : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* GloBird ZEROHERO $1/kWh Filter */}
+                  <button
+                    type="button"
+                    onClick={() => setZeroHeroOnly(!zeroHeroOnly)}
+                    className={`text-xs px-2.5 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-colors ${
+                      zeroHeroOnly
+                        ? 'bg-emerald-600 text-white ring-2 ring-emerald-400'
+                        : 'bg-emerald-50 text-emerald-950 border border-emerald-300 hover:bg-emerald-100'
+                    }`}
+                  >
+                    <DollarSign className="w-3.5 h-3.5 text-emerald-700" />
+                    ZEROHERO ($1/kWh)
+                  </button>
+
+                  {/* Free Power Hours Button */}
+                  <button
+                    type="button"
+                    onClick={() => setFreePowerOnly(!freePowerOnly)}
+                    className={`text-xs px-2.5 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-colors ${
+                      freePowerOnly
+                        ? 'bg-amber-500 text-slate-950 ring-2 ring-amber-400'
+                        : 'bg-amber-50 text-amber-900 border border-amber-200 hover:bg-amber-100'
+                    }`}
+                  >
+                    <Clock className="w-3.5 h-3.5 text-amber-700" />
+                    Free Power Hours (0c)
+                  </button>
+
+                  {/* Battery / VPP button */}
+                  <button
+                    type="button"
+                    onClick={() => setBatteryOnly(!batteryOnly)}
+                    className={`text-xs px-2.5 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-colors ${
+                      batteryOnly
+                        ? 'bg-emerald-700 text-white'
+                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                    }`}
+                  >
+                    <BatteryCharging className="w-3.5 h-3.5" />
+                    Battery / VPP Ready
+                  </button>
+
+                  {/* EV Friendly button */}
+                  <button
+                    type="button"
+                    onClick={() => setEvOnly(!evOnly)}
+                    className={`text-xs px-2.5 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-colors ${
+                      evOnly
+                        ? 'bg-sky-600 text-white'
+                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                    }`}
+                  >
+                    <Car className="w-3.5 h-3.5" />
+                    EV Night Rate (7c-8c)
+                  </button>
+
+                  {/* Tariff Type */}
+                  <select
+                    value={tariffFilter}
+                    onChange={(e) => setTariffFilter(e.target.value as any)}
+                    className="text-xs font-semibold bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  >
+                    <option value="ALL">All Tariffs</option>
+                    <option value="FLAT">Single Flat Rate</option>
+                    <option value="TOU">Time of Use</option>
                   </select>
                 </div>
 
-                {/* GloBird ZEROHERO $1/kWh Filter */}
-                <button
-                  type="button"
-                  onClick={() => setZeroHeroOnly(!zeroHeroOnly)}
-                  className={`text-xs px-2.5 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-colors ${
-                    zeroHeroOnly
-                      ? 'bg-emerald-600 text-white ring-2 ring-emerald-400'
-                      : 'bg-emerald-50 text-emerald-950 border border-emerald-300 hover:bg-emerald-100'
-                  }`}
-                >
-                  <DollarSign className="w-3.5 h-3.5 text-emerald-700" />
-                  ZEROHERO ($1/kWh Reward)
-                </button>
-
-                {/* Free Power Hours Button */}
-                <button
-                  type="button"
-                  onClick={() => setFreePowerOnly(!freePowerOnly)}
-                  className={`text-xs px-2.5 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-colors ${
-                    freePowerOnly
-                      ? 'bg-amber-500 text-slate-950 ring-2 ring-amber-400'
-                      : 'bg-amber-50 text-amber-900 border border-amber-200 hover:bg-amber-100'
-                  }`}
-                >
-                  <Clock className="w-3.5 h-3.5 text-amber-700" />
-                  Free Power Hours (0c)
-                </button>
-
-                {/* Battery / VPP button */}
-                <button
-                  type="button"
-                  onClick={() => setBatteryOnly(!batteryOnly)}
-                  className={`text-xs px-2.5 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-colors ${
-                    batteryOnly
-                      ? 'bg-emerald-700 text-white'
-                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                  }`}
-                >
-                  <BatteryCharging className="w-3.5 h-3.5" />
-                  Battery / VPP Ready
-                </button>
-
-                {/* EV Friendly button */}
-                <button
-                  type="button"
-                  onClick={() => setEvOnly(!evOnly)}
-                  className={`text-xs px-2.5 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-colors ${
-                    evOnly
-                      ? 'bg-sky-600 text-white'
-                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                  }`}
-                >
-                  <Car className="w-3.5 h-3.5" />
-                  EV Night Rate (7c-8c)
-                </button>
-
-                {/* Tariff Type */}
-                <select
-                  value={tariffFilter}
-                  onChange={(e) => setTariffFilter(e.target.value as any)}
-                  className="text-xs font-semibold bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                >
-                  <option value="ALL">All Tariffs</option>
-                  <option value="FLAT">Single Flat Rate</option>
-                  <option value="TOU">Time of Use</option>
-                </select>
-              </div>
-
-              {/* Sort By */}
-              <div className="flex items-center gap-2 self-end lg:self-auto">
-                <span className="text-xs font-bold text-slate-500 flex items-center gap-1">
-                  <ArrowUpDown className="w-3.5 h-3.5" /> Sort:
-                </span>
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value as any)}
-                  className="text-xs font-bold bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                >
-                  <option value="LOWEST_COST">Lowest Estimated Cost</option>
-                  <option value="MAX_SAVINGS">Highest Savings vs VDO/DMO</option>
-                  <option value="SOLAR_FIT">Highest Solar Feed-in</option>
-                  <option value="RATING">Highest Customer Rating</option>
-                </select>
+                {/* Sort By */}
+                <div className="flex items-center gap-2 self-end lg:self-auto">
+                  <span className="text-xs font-bold text-slate-500 flex items-center gap-1">
+                    <ArrowUpDown className="w-3.5 h-3.5" /> Sort:
+                  </span>
+                  <select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value as any)}
+                    className="text-xs font-bold bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  >
+                    <option value="LOWEST_COST">Lowest Estimated Cost</option>
+                    <option value="MAX_SAVINGS">Highest Savings vs VDO/DMO</option>
+                    <option value="SOLAR_FIT">Highest Solar Feed-in</option>
+                    <option value="RATING">Highest Customer Rating</option>
+                  </select>
+                </div>
               </div>
             </div>
 
@@ -383,14 +459,15 @@ export function App() {
                 <div className="flex items-center justify-between text-xs text-slate-500">
                   <span>
                     Showing <strong>{filteredPlans.length} plans</strong> available for <strong>{currentDistributor.name}</strong>
+                    {searchQuery ? ` matching "${searchQuery}"` : ''}
                   </span>
                   <div className="flex items-center gap-2">
-                    {retailerFilter !== 'ALL' && (
+                    {(retailerFilter !== 'ALL' || searchQuery) && (
                       <button
-                        onClick={() => setRetailerFilter('ALL')}
+                        onClick={resetFilters}
                         className="text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1 rounded-md"
                       >
-                        Show All Retailers
+                        Reset Search / Filters
                       </button>
                     )}
                     {comparedPlanIds.length > 0 && (
@@ -408,12 +485,23 @@ export function App() {
                 {filteredPlans.length === 0 ? (
                   <div className="bg-white rounded-2xl p-8 text-center space-y-3 border border-slate-200">
                     <p className="text-sm font-bold text-slate-700">No matching plans found for this filter combination.</p>
-                    <button
-                      onClick={resetFilters}
-                      className="px-4 py-2 bg-emerald-700 text-white rounded-xl text-xs font-bold"
-                    >
-                      Reset All Filters (Show All {availableRetailers.length} Retailers)
-                    </button>
+                    <p className="text-xs text-slate-500">
+                      You can clear filters or add any custom tariff plan using the button below.
+                    </p>
+                    <div className="flex items-center justify-center gap-2 pt-1">
+                      <button
+                        onClick={resetFilters}
+                        className="px-4 py-2 bg-emerald-700 text-white rounded-xl text-xs font-bold"
+                      >
+                        Reset All Filters
+                      </button>
+                      <button
+                        onClick={() => setIsManualPlanModalOpen(true)}
+                        className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold"
+                      >
+                        Add Plan Manually
+                      </button>
+                    </div>
                   </div>
                 ) : (
                   filteredPlans.map((plan) => (
@@ -447,7 +535,7 @@ export function App() {
                     </h4>
                   </div>
                   <p className="text-xs text-slate-300 leading-relaxed">
-                    Test your <strong>{profile.batteryCapacityKWh}kWh battery</strong> against extreme NEM spot spikes ($15/kWh) on Amber vs GloBird ZEROHERO ($1.00/kWh incentive) and FreeLunch.
+                    Test your <strong>{profile.batteryCapacityKWh}kWh battery</strong> against extreme NEM spot spikes ($15/kWh) on GloBird WholeSave & Amber vs GloBird ZEROHERO ($1.00/kWh incentive) and FreeLunch.
                   </p>
                   <button
                     onClick={() => setActiveTab('wholesale')}
@@ -490,7 +578,7 @@ export function App() {
             <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-2">
               <h2 className="text-xl font-extrabold text-slate-900">Australian Electricity Jargon Explained</h2>
               <p className="text-xs text-slate-500">
-                A simple glossary of every term including Amber Smartshift wholesale spot trading, GloBird FreeLunch, ZEROHERO $1.00/kWh incentives, and 40kWh-50kWh battery banks.
+                A simple glossary of every term including GloBird WholeSave, FreeLunch, ZEROHERO $1.00/kWh incentives, and 40kWh-50kWh battery banks.
               </p>
             </div>
             <AerReferenceGuide />
@@ -541,6 +629,14 @@ export function App() {
           onRemovePlan={(id) => setComparedPlanIds(comparedPlanIds.filter((p) => p !== id))}
         />
       )}
+
+      {/* Manual Plan Modal */}
+      <ManualPlanModal
+        isOpen={isManualPlanModalOpen}
+        onClose={() => setIsManualPlanModalOpen(false)}
+        distributor={currentDistributor}
+        onAddCustomPlan={handleAddCustomPlan}
+      />
 
       {/* Jargon explainer modal */}
       <JargonModal
